@@ -2,6 +2,7 @@ import socket
 import threading
 import sqlite3
 from argon2 import PasswordHasher
+from argon2.exceptions import VerifyMismatchError
 
 host = '127.0.0.1'
 port = 25565
@@ -76,6 +77,30 @@ def register_user(username, password):
         print("Error: That username is already taken.")
 
     con.close()
+
+def login_user(username, password):
+    ph = PasswordHasher()
+    password_hash = ph.hash(password)
+
+    con = sqlite3.connect("user_data.db")
+    cur = con.cursor()
+
+    cur.execute("SELECT password_hash FROM users WHERE username = ?", (username,))
+    res = cur.fetchone()
+    con.close()
+    
+    if res:
+        correct_hash = res[0]
+        try:
+            ph.verify(correct_hash, password)
+            print("Login successful! Welcome back.")
+            return True
+        except VerifyMismatchError:
+            print("Login failed: Incorrect password.")
+    else:
+        print("Login failed: User not found.")
+    
+    return False
 
 con = setup_db()
 print('Server is listening...')
