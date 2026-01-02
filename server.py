@@ -1,8 +1,9 @@
 import socket
 import threading
+import sqlite3
 
 host = '127.0.0.1'
-port = 55555
+port = 25565
 
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 server.bind((host, port))
@@ -46,5 +47,19 @@ def receive():
         thread = threading.Thread(target=handle, args=(client,))
         thread.start()
 
+def setup_db():
+    con = sqlite3.connect("user_data.db")
+    cur = con.cursor()
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE NOT NULL,
+            password_hash TEXT NOT NULL
+        )
+    """)
+    con.commit()
+    return con
+
+con = setup_db()
 print('Server is listening...')
 receive()
