@@ -1,2 +1,1 @@
-# No external dependencies
-requests
+argon2-cffi==25.1.0
