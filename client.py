@@ -9,7 +9,11 @@ client.connect(('127.0.0.1', 25565))
 authenticated = False
 nickname = ""
 password = ""
-login_window = None
+bg_color = "#0013BE"
+chat_bg_color = "#0082FC"
+root = tk.Tk()
+root.title("Mini WhatsApp")
+root.geometry("1920x1080")
 
 def receive():
     global authenticated, nickname, password
@@ -23,18 +27,18 @@ def receive():
                 client.send(password.encode('ascii'))
             elif message == 'LOGIN_SUCCESS':
                 authenticated = True
-                if login_window:
-                    login_window.after(0, lambda: show_success("Logged in successfully!"))
+                if root:
+                    root.after(0, show_chat)
             elif message == 'USER_CREATED':
                 authenticated = True
-                if login_window:
-                    login_window.after(0, lambda: show_success("User created and logged in successfully!"))
+                if root:
+                    root.after(0, show_chat)
             elif message == 'WRONG_PASSWORD':
-                if login_window:
-                    login_window.after(0, lambda: show_error("Wrong password! Please try again."))
+                if root:
+                    root.after(0, lambda: show_error("Wrong password! Please try again."))
                 password = ""
             else:
-                print(message)
+                root.after(0, lambda m=message: chat_frame.display_message(m))
         except:
             print("An error occurred!")
             client.close()
@@ -42,71 +46,89 @@ def receive():
 
 def show_success(msg):
     messagebox.showinfo("Success", msg)
-    login_window.destroy()
-    start_chat()
+    show_chat()
 
 def show_error(msg):
     messagebox.showerror("Error", msg)
 
-def login():
-    global nickname, password
-    nickname = username_entry.get().strip()
-    password = password_entry.get().strip()
-    
-    if not nickname or not password:
-        messagebox.showerror("Error", "Please enter both username and password")
-        return
-    
-    login_btn.config(state='disabled')
 
-def create_login_window():
-    global login_window, username_entry, password_entry, login_btn
+def show_chat():
+    login_frame.pack_forget()
+    chat_frame.pack(fill="both", expand=True)
 
-    login_window = tk.Tk()
-    login_window.title("Mini WhatsApp - Login")
-    login_window.geometry("1920x1080")
+class LoginFrame(tk.Frame):
+    def __init__(self, master, on_success):
+        super().__init__(master)
+        self.on_success = on_success
 
-    bg_color = "#0013BE"
-    login_window.configure(bg=bg_color)
-    
-    title_label = tk.Label(login_window, text="Mini WhatsApp", font=("Arial", 20, "bold"), 
-                          bg=bg_color, fg="white")
-    title_label.pack(pady=20)
-    
-    input_frame = tk.Frame(login_window, bg=bg_color)
-    input_frame.pack(pady=10, padx=30, fill="both", expand=True)
-    
-    # Username
-    username_label = tk.Label(input_frame, text="Username:", font=("Arial", 11), bg=bg_color, fg="white")
-    username_label.pack(pady=(20, 5))
-    
-    username_entry = tk.Entry(input_frame, font=("Arial", 11), width=25)
-    username_entry.pack(pady=5)
-    
-    # Password
-    password_label = tk.Label(input_frame, text="Password:", font=("Arial", 11), bg=bg_color, fg="white")
-    password_label.pack(pady=(10, 5))
-    
-    password_entry = tk.Entry(input_frame, font=("Arial", 11), width=25, show="*")
-    password_entry.pack(pady=5)
-    
-    login_btn = tk.Button(input_frame, text="Login", font=("Arial", 12, "bold"),
-                         bg="#25D366", fg="white", width=15, command=login)
-    login_btn.pack(pady=20)
-    
-    password_entry.bind('<Return>', lambda e: login())
-    
-    login_window.mainloop()
+        self.configure(bg=bg_color)
 
-def start_chat():
-    while True:
-        message = f'{nickname}: {input("")}'
-        client.send(message.encode('ascii'))
+        self.title_label = tk.Label(self, text="Mini WhatsApp", font=("Arial", 20, "bold"), 
+                            bg=bg_color, fg="white")
+        self.title_label.pack(pady=20)
+        
+        self.input_frame = tk.Frame(self, bg=bg_color)
+        self.input_frame.pack(pady=10, padx=30, fill="both", expand=True)
+        
+        # Username
+        self.username_label = tk.Label(self.input_frame, text="Username:", font=("Arial", 11), bg=bg_color, fg="white")
+        self.username_label.pack(pady=(20, 5))
+        
+        self.user = tk.Entry(self.input_frame, font=("Arial", 11), width=25)
+        self.user.pack(pady=5)
+        
+        # Password
+        self.password_label = tk.Label(self.input_frame, text="Password:", font=("Arial", 11), bg=bg_color, fg="white")
+        self.password_label.pack(pady=(10, 5))
+        
+        self.password = tk.Entry(self.input_frame, font=("Arial", 11), width=25, show="*")
+        self.password.pack(pady=5)
+        
+        self.login_btn = tk.Button(self.input_frame, text="Login", font=("Arial", 12, "bold"),
+                            bg="#25D366", fg="white", width=15, command=self.login)
+        self.login_btn.pack(pady=20)
+        
+    def login(self):
+        global nickname, password
+        nickname = self.user.get()
+        password = self.password.get()
+        if nickname.strip() == "" or password.strip() == "":
+            show_error("Please enter both username and password.")
+            return
+        client.send(f"{nickname}".encode('ascii'))
+
+class ChatFrame(tk.Frame):
+    def __init__(self, master):
+        super().__init__(master)
+        self.configure(bg=bg_color)
+
+        self.chat = tk.Text(self, bg=chat_bg_color, fg="black", state="disabled")
+        self.chat.pack(pady=20, padx=20, fill="both", expand=True)
+
+        self.entry = tk.Entry(self, font=("Arial", 12))
+        self.entry.pack(pady=10, padx=20, fill="x")
+
+        self.entry.bind("<Return>", self.on_enter)  # NEW
+
+    def display_message(self, msg):
+        self.chat.config(state="normal")
+        self.chat.insert(tk.END, msg + "\n")
+        self.chat.see(tk.END)
+        self.chat.config(state="disabled")
+
+    def on_enter(self, event):
+        msg = self.entry.get()
+        if msg.strip() == "":
+            return
+        self.entry.delete(0, tk.END)
+        client.send(f"{nickname}: {msg}".encode("ascii"))
 
 receive_thread = threading.Thread(target=receive, daemon=True)
 receive_thread.start()
 
-create_login_window()
+login_frame = LoginFrame(root, on_success=lambda: show_chat())
+chat_frame = ChatFrame(root)
 
-if authenticated:
-    start_chat()
+login_frame.pack(fill="both", expand=True)
+
+root.mainloop()
