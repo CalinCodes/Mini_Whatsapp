@@ -1,6 +1,7 @@
 import socket
 import threading
 import sqlite3
+from argon2 import PasswordHasher
 
 host = '127.0.0.1'
 port = 25565
@@ -59,6 +60,22 @@ def setup_db():
     """)
     con.commit()
     return con
+
+def register_user(username, password):
+    ph = PasswordHasher()
+    password_hash = ph.hash(password)
+
+    con = sqlite3.connect("user_data.db")
+    cur = con.cursor()
+
+    try:
+        cur.execute("INSERT INTO users (username, password_hash) VALUES (?, ?)", (username, password_hash))
+        con.commit()
+        print(f"User '{username}' registered successfully!")
+    except sqlite3.IntegrityError:
+        print("Error: That username is already taken.")
+
+    con.close()
 
 con = setup_db()
 print('Server is listening...')
