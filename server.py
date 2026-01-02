@@ -37,8 +37,31 @@ def receive():
         client, address = server.accept()
         print(f'Connected with {str(address)}')
 
-        client.send('NICK'.encode('ascii'))
-        nickname = client.recv(1024).decode('ascii')
+        authenticated = False
+        nickname = None
+        
+        while not authenticated:
+            client.send('NICK'.encode('ascii'))
+            nickname = client.recv(1024).decode('ascii')
+            client.send('PASS'.encode('ascii'))
+            password = client.recv(1024).decode('ascii')
+
+            con = sqlite3.connect("user_data.db")
+            cur = con.cursor()
+            cur.execute("SELECT password_hash FROM users WHERE username = ?", (nickname,))
+            user_exists = cur.fetchone()
+            con.close()
+
+            if not user_exists:
+                register_user(nickname, password)
+                client.send('USER_CREATED'.encode('ascii'))
+                authenticated = True
+            elif login_user(nickname, password):
+                client.send('LOGIN_SUCCESS'.encode('ascii'))
+                authenticated = True
+            else:
+                client.send('WRONG_PASSWORD'.encode('ascii'))
+        
         nicknames.append(nickname)
         clients.append(client)
 
@@ -80,7 +103,6 @@ def register_user(username, password):
 
 def login_user(username, password):
     ph = PasswordHasher()
-    password_hash = ph.hash(password)
 
     con = sqlite3.connect("user_data.db")
     cur = con.cursor()
