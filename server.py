@@ -39,7 +39,7 @@ def receive():
 
         authenticated = False
         nickname = None
-        
+
         while not authenticated:
             client.send('NICK'.encode('ascii'))
             nickname = client.recv(1024).decode('ascii')
@@ -52,7 +52,7 @@ def receive():
             user_exists = cur.fetchone()
             con.close()
 
-            if not user_exists:
+            if not user_exists :
                 register_user(nickname, password)
                 client.send('USER_CREATED'.encode('ascii'))
                 authenticated = True
@@ -61,7 +61,7 @@ def receive():
                 authenticated = True
             else:
                 client.send('WRONG_PASSWORD'.encode('ascii'))
-        
+
         nicknames.append(nickname)
         clients.append(client)
 

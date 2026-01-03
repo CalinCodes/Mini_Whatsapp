@@ -23,9 +23,19 @@ def receive():
         try:
             message = client.recv(1024).decode('ascii')
             if message == 'NICK':
+                while not nickname:
+                    pass
                 client.send(nickname.encode('ascii'))
             elif message == 'PASS':
+                while not password:
+                    pass
                 client.send(password.encode('ascii'))
+            elif message == 'REENTER_PASS':
+                if isinstance(root.children.get('!registerframe'), RegisterFrame):
+                    reentered_password = root.children['!registerframe'].reenter_password.get()
+                else:
+                    reentered_password = ""
+                client.send(reentered_password.encode('ascii'))
             elif message == 'LOGIN_SUCCESS':
                 authenticated = True
                 if root:
@@ -37,6 +47,11 @@ def receive():
             elif message == 'WRONG_PASSWORD':
                 if root:
                     root.after(0, lambda: show_error("Wrong password! Please try again."))
+                password = ""
+            elif message == 'USER_NOT_FOUND':
+                if root:
+                    root.after(0, lambda: show_error("User not found! Please register first."))
+                nickname = ""
                 password = ""
             else:
                 root.after(0, lambda m=message: chat_frame.display_message(m))
@@ -67,38 +82,90 @@ class LoginFrame(tk.Frame):
         self.title_label = tk.Label(self, text="Mini WhatsApp", font=("Arial", 20, "bold"), 
                             bg=bg_color, fg="white")
         self.title_label.pack(pady=20)
-        
+
         self.input_frame = tk.Frame(self, bg=bg_color)
         self.input_frame.pack(pady=10, padx=30, fill="both", expand=True)
-        
+
         # Username
         self.username_label = tk.Label(self.input_frame, text="Username:", font=("Arial", 14), bg=bg_color, fg="white")
         self.username_label.pack(pady=(20, 5))
-        
+
         self.user = tk.Entry(self.input_frame, font=("Arial", 14), width=25, bg=chat_bg_color, fg=text_color)
         self.user.pack(pady=5)
-        
+
         # Password
         self.password_label = tk.Label(self.input_frame, text="Password:", font=("Arial", 14), bg=bg_color, fg="white")
         self.password_label.pack(pady=(10, 5))
-        
+
         self.password = tk.Entry(self.input_frame, font=("Arial", 14), width=25, show="*", bg=chat_bg_color, fg=text_color)
         self.password.pack(pady=5)
 
         self.password.bind("<Return>", lambda e: self.login())
-        
+
         self.login_btn = tk.Button(self.input_frame, text="Login", font=("Arial", 12, "bold"),
                             bg=chat_bg_color, fg=text_color, width=15, command=self.login)
         self.login_btn.pack(pady=20)
-        
+
     def login(self):
         global nickname, password
         nickname = self.user.get()
         password = self.password.get()
+
         if nickname.strip() == "" or password.strip() == "":
             show_error("Please enter both username and password.")
             return
-        client.send(f"{nickname}".encode('ascii'))
+
+class RegisterFrame(tk.Frame):
+    def __init__(self, master, on_success):
+        super().__init__(master)
+        self.on_success = on_success
+
+        self.configure(bg=bg_color)
+
+        self.title_label = tk.Label(self, text="Mini WhatsApp", font=("Arial", 20, "bold"), 
+                            bg=bg_color, fg="white")
+        self.title_label.pack(pady=20)
+
+        self.input_frame = tk.Frame(self, bg=bg_color)
+        self.input_frame.pack(pady=10, padx=30, fill="both", expand=True)
+
+        # Username
+        self.username_label = tk.Label(self.input_frame, text="Username:", font=("Arial", 14), bg=bg_color, fg="white")
+        self.username_label.pack(pady=(20, 5))
+
+        self.user = tk.Entry(self.input_frame, font=("Arial", 14), width=25, bg=chat_bg_color, fg=text_color)
+        self.user.pack(pady=5)
+
+        # Password
+        self.password_label = tk.Label(self.input_frame, text="Password:", font=("Arial", 14), bg=bg_color, fg="white")
+        self.password_label.pack(pady=(10, 5))
+
+        self.password = tk.Entry(self.input_frame, font=("Arial", 14), width=25, show="*", bg=chat_bg_color, fg=text_color)
+        self.password.pack(pady=5)
+
+        self.password.bind("<Return>", lambda e: self.register())
+
+        # Reenter Password
+        self.reenter_password_label = tk.Label(self.input_frame, text="Re-enter Password:", font=("Arial", 14), bg=bg_color, fg="white")
+        self.reenter_password_label.pack(pady=(10, 5))
+
+        self.reenter_password = tk.Entry(self.input_frame, font=("Arial", 14), width=25, show="*", bg=chat_bg_color, fg=text_color)
+        self.reenter_password.pack(pady=5)
+
+        self.reenter_password.bind("<Return>", lambda e: self.register())
+
+        self.register_btn = tk.Button(self.input_frame, text="register", font=("Arial", 12, "bold"),
+                            bg=chat_bg_color, fg=text_color, width=15, command=self.register)
+        self.register_btn.pack(pady=20)
+
+    def register(self):
+        global nickname, password
+        nickname = self.user.get()
+        password = self.password.get()
+
+        if nickname.strip() == "" or password.strip() == "":
+            show_error("Please enter both username and password.")
+            return
 
 class ChatFrame(tk.Frame):
     def __init__(self, master):
