@@ -83,7 +83,9 @@ class LoginFrame(tk.Frame):
         
         self.password = tk.Entry(self.input_frame, font=("Arial", 11), width=25, show="*")
         self.password.pack(pady=5)
-        
+
+        self.password.bind("<Return>", lambda e: self.login())
+
         self.login_btn = tk.Button(self.input_frame, text="Login", font=("Arial", 12, "bold"),
                             bg="#25D366", fg="white", width=15, command=self.login)
         self.login_btn.pack(pady=20)
@@ -108,7 +110,7 @@ class ChatFrame(tk.Frame):
         self.entry = tk.Entry(self, font=("Arial", 12))
         self.entry.pack(pady=10, padx=20, fill="x")
 
-        self.entry.bind("<Return>", self.on_enter)  # NEW
+        self.entry.bind("<Return>", self.on_enter)
 
     def display_message(self, msg):
         self.chat.config(state="normal")
