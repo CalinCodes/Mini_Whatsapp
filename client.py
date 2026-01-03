@@ -104,11 +104,12 @@ class ChatFrame(tk.Frame):
         super().__init__(master)
         self.configure(bg=bg_color)
 
+        self.entry = tk.Entry(self, font=("Arial", 12))
+        self.entry.pack(pady=10, padx=20, fill="x", side="bottom")
+        
         self.chat = tk.Text(self, bg=chat_bg_color, fg="black", state="disabled")
         self.chat.pack(pady=20, padx=20, fill="both", expand=True)
 
-        self.entry = tk.Entry(self, font=("Arial", 12))
-        self.entry.pack(pady=10, padx=20, fill="x")
 
         self.entry.bind("<Return>", self.on_enter)
 
