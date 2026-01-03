@@ -9,11 +9,12 @@ client.connect(('127.0.0.1', 25565))
 authenticated = False
 nickname = ""
 password = ""
-bg_color = "#0013BE"
-chat_bg_color = "#0082FC"
+bg_color = "#9CAB84"
+chat_bg_color = "#F6F0D7"
+text_color = "#36656B"
 root = tk.Tk()
 root.title("Mini WhatsApp")
-root.geometry("1920x1080")
+root.geometry("1280x720")
 
 def receive():
     global authenticated, nickname, password
@@ -71,21 +72,23 @@ class LoginFrame(tk.Frame):
         self.input_frame.pack(pady=10, padx=30, fill="both", expand=True)
         
         # Username
-        self.username_label = tk.Label(self.input_frame, text="Username:", font=("Arial", 11), bg=bg_color, fg="white")
+        self.username_label = tk.Label(self.input_frame, text="Username:", font=("Arial", 14), bg=bg_color, fg="white")
         self.username_label.pack(pady=(20, 5))
         
-        self.user = tk.Entry(self.input_frame, font=("Arial", 11), width=25)
+        self.user = tk.Entry(self.input_frame, font=("Arial", 14), width=25, bg=chat_bg_color, fg=text_color)
         self.user.pack(pady=5)
         
         # Password
-        self.password_label = tk.Label(self.input_frame, text="Password:", font=("Arial", 11), bg=bg_color, fg="white")
+        self.password_label = tk.Label(self.input_frame, text="Password:", font=("Arial", 14), bg=bg_color, fg="white")
         self.password_label.pack(pady=(10, 5))
         
-        self.password = tk.Entry(self.input_frame, font=("Arial", 11), width=25, show="*")
+        self.password = tk.Entry(self.input_frame, font=("Arial", 14), width=25, show="*", bg=chat_bg_color, fg=text_color)
         self.password.pack(pady=5)
+
+        self.password.bind("<Return>", lambda e: self.login())
         
         self.login_btn = tk.Button(self.input_frame, text="Login", font=("Arial", 12, "bold"),
-                            bg="#25D366", fg="white", width=15, command=self.login)
+                            bg=chat_bg_color, fg=text_color, width=15, command=self.login)
         self.login_btn.pack(pady=20)
         
     def login(self):
@@ -102,13 +105,13 @@ class ChatFrame(tk.Frame):
         super().__init__(master)
         self.configure(bg=bg_color)
 
-        self.chat = tk.Text(self, bg=chat_bg_color, fg="black", state="disabled")
+        self.entry = tk.Entry(self, font=("Arial", 18), bg=chat_bg_color, fg=text_color)
+        self.entry.pack(pady=10, padx=20, fill="x", side="bottom")
+
+        self.chat = tk.Text(self, bg=chat_bg_color, fg=text_color, state="disabled", font=("Arial", 22))
         self.chat.pack(pady=20, padx=20, fill="both", expand=True)
 
-        self.entry = tk.Entry(self, font=("Arial", 12))
-        self.entry.pack(pady=10, padx=20, fill="x")
-
-        self.entry.bind("<Return>", self.on_enter)  # NEW
+        self.entry.bind("<Return>", self.on_enter)
 
     def display_message(self, msg):
         self.chat.config(state="normal")
