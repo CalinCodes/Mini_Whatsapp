@@ -11,12 +11,17 @@ server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 server.bind((host, port))
 server.listen()
 
-clients = []
-nicknames = []
+clients = {}
 
 def broadcast(message):
     for client in clients:
         client.send(message)
+
+def send_private(recipient_nickname, message):
+    for i, nickname in enumerate(clients.values()):
+        if nickname == recipient_nickname:
+            list(clients.keys())[i].send(message)
+            break
 
 def handle(client):
     while True:
