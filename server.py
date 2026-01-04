@@ -23,18 +23,25 @@ def send_private(recipient_nickname, message):
             list(clients.keys())[i].send(message)
             break
 
-def handle(client):
+def handle(client, nickname):
     while True:
         try:
-            message = client.recv(1024)
-            broadcast(message)
+            message = client.recv(1024).decode('ascii')
+            if message.startswith("PRIVATE_MSG:"):
+                parts = message.split(":", 2)
+                if len(parts) >= 3:
+                    recipient = parts[1]
+                    content = parts[2]
+                    private_msg = f"PRIVATE:{nickname}:{content}"
+                    send_private(recipient, private_msg.encode('ascii'))
+                    client.send(f"PRIVATE:{recipient}:{content}".encode('ascii'))
+            else:   
+                broadcast(message.encode('ascii'))
         except:
-            index = clients.index(client)
-            clients.remove(client)
+            if nickname in clients:
+                del clients[nickname]
             client.close()
-            nickname = nicknames[index]
             broadcast(f'{nickname} left the chat!'.encode('ascii'))
-            nicknames.remove(nickname)
             break
 
 def receive():
@@ -67,14 +74,13 @@ def receive():
             else:
                 client.send('WRONG_PASSWORD'.encode('ascii'))
         
-        nicknames.append(nickname)
-        clients.append(client)
+        clients[nickname] = client
 
         print(f'Nickname of the client is {nickname}!\n')
         broadcast(f'{nickname} joined the chat!\n'.encode('ascii'))
         client.send('Connected to the server!\n'.encode('ascii'))
 
-        thread = threading.Thread(target=handle, args=(client,))
+        thread = threading.Thread(target=handle, args=(client, nickname))
         thread.start()
 
 def setup_db():
