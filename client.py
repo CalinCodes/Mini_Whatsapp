@@ -2,10 +2,15 @@ import socket
 import threading
 import tkinter as tk
 from tkinter import messagebox
+import time
 
 client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 client.connect(('127.0.0.1', 25565))
 
+auth_mode = None
+auth_mode_event = threading.Event()
+nickname_event = threading.Event()
+password_event = threading.Event()
 authenticated = False
 nickname = ""
 password = ""
@@ -18,51 +23,60 @@ root.geometry("1280x720")
 
 def receive():
     global authenticated, nickname, password
-    
+
     while True:
         try:
             message = client.recv(1024).decode('ascii')
-            if message == 'NICK':
-                while not nickname:
-                    pass
+
+            if message == 'AUTH_MODE':
+                auth_mode_event.wait()
+                client.send(auth_mode.encode('ascii'))
+
+            elif message == 'NICK':
                 client.send(nickname.encode('ascii'))
+
             elif message == 'PASS':
-                while not password:
-                    pass
                 client.send(password.encode('ascii'))
+
             elif message == 'REENTER_PASS':
-                if isinstance(root.children.get('!registerframe'), RegisterFrame):
-                    reentered_password = root.children['!registerframe'].reenter_password.get()
-                else:
-                    reentered_password = ""
-                client.send(reentered_password.encode('ascii'))
-            elif message == 'LOGIN_SUCCESS':
+                client.send(register_frame.reenter_password.get().encode('ascii'))
+            
+            elif message in ('LOGIN_SUCCESS', 'USER_CREATED'):
                 authenticated = True
-                if root:
-                    root.after(0, show_chat)
-            elif message == 'USER_CREATED':
-                authenticated = True
-                if root:
-                    root.after(0, show_chat)
-            elif message == 'WRONG_PASSWORD':
-                if root:
-                    root.after(0, lambda: show_error("Wrong password! Please try again."))
-                password = ""
+                root.after(0, show_chat)
+
+            elif message == 'USER_EXISTS':
+                root.after(0, lambda: show_error("User already exists"))
+                reset_auth_state()
+
             elif message == 'USER_NOT_FOUND':
-                if root:
-                    root.after(0, lambda: show_error("User not found! Please register first."))
-                nickname = ""
-                password = ""
+                root.after(0, lambda: show_error("User not found"))
+                reset_auth_state()
+
+            elif message == 'WRONG_PASSWORD':
+                root.after(0, lambda: show_error("Wrong password"))
+                reset_auth_state()
+
             else:
-                root.after(0, lambda m=message: chat_frame.display_message(m))
+                if authenticated:
+                    root.after(0, lambda m=message: chat_frame.display_message(m))
+
         except:
-            print("An error occurred!")
             client.close()
             break
 
-def show_success(msg):
-    messagebox.showinfo("Success", msg)
-    show_chat()
+def reset_auth_state():
+    global auth_mode, nickname, password
+    auth_mode = None
+    nickname = ""
+    password = ""
+
+    auth_mode_event.clear()
+    nickname_event.clear()
+    password_event.clear()
+
+    login_frame.user.delete(0, tk.END)
+    login_frame.password.delete(0, tk.END)
 
 def show_error(msg):
     messagebox.showerror("Error", msg)
@@ -107,13 +121,16 @@ class LoginFrame(tk.Frame):
         self.login_btn.pack(pady=20)
 
     def login(self):
-        global nickname, password
+        global nickname, password, auth_mode
+        if not self.user.get() or not self.password.get():
+            show_error("Please enter both username and password")
+            return
         nickname = self.user.get()
         password = self.password.get()
-
-        if nickname.strip() == "" or password.strip() == "":
-            show_error("Please enter both username and password.")
-            return
+        auth_mode = "LOGIN"
+        auth_mode_event.set()
+        nickname_event.set()
+        password_event.set()
 
 class RegisterFrame(tk.Frame):
     def __init__(self, master, on_success):
@@ -143,8 +160,6 @@ class RegisterFrame(tk.Frame):
         self.password = tk.Entry(self.input_frame, font=("Arial", 14), width=25, show="*", bg=chat_bg_color, fg=text_color)
         self.password.pack(pady=5)
 
-        self.password.bind("<Return>", lambda e: self.register())
-
         # Reenter Password
         self.reenter_password_label = tk.Label(self.input_frame, text="Re-enter Password:", font=("Arial", 14), bg=bg_color, fg="white")
         self.reenter_password_label.pack(pady=(10, 5))
@@ -159,13 +174,16 @@ class RegisterFrame(tk.Frame):
         self.register_btn.pack(pady=20)
 
     def register(self):
-        global nickname, password
+        global nickname, password, auth_mode
+        if not self.user.get() or not self.password.get() or not self.reenter_password.get():
+            show_error("Please fill in all fields")
+            return
         nickname = self.user.get()
         password = self.password.get()
-
-        if nickname.strip() == "" or password.strip() == "":
-            show_error("Please enter both username and password.")
-            return
+        auth_mode = "REGISTER"
+        auth_mode_event.set()
+        nickname_event.set()
+        password_event.set()
 
 class ChatFrame(tk.Frame):
     def __init__(self, master):
