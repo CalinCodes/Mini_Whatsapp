@@ -81,9 +81,13 @@ def reset_auth_state():
 def show_error(msg):
     messagebox.showerror("Error", msg)
 
-
 def show_chat():
     login_frame.pack_forget()
+
+    global register_frame
+    if 'register_frame' in globals():
+        register_frame.pack_forget()
+
     chat_frame.pack(fill="both", expand=True)
 
 class LoginFrame(tk.Frame):
@@ -119,6 +123,20 @@ class LoginFrame(tk.Frame):
         self.login_btn = tk.Button(self.input_frame, text="Login", font=("Arial", 12, "bold"),
                             bg=chat_bg_color, fg=text_color, width=15, command=self.login)
         self.login_btn.pack(pady=20)
+
+        self.register_label = tk.Label(self.input_frame, text="Don't have an account?", font=("Arial", 12), bg=bg_color, fg="white")
+        self.register_label.pack(pady=(10, 5))
+
+        self.register_btn = tk.Button(self.input_frame, text="Register", font=("Arial", 12, "bold"),
+                            bg=chat_bg_color, fg=text_color, width=15, command=self.show_register)
+        self.register_btn.pack(pady=5)
+    
+    def show_register(self):
+        global register_frame, auth_mode
+        self.pack_forget()
+        register_frame = RegisterFrame(root, on_success=lambda: show_chat())
+        register_frame.pack(fill="both", expand=True)
+        auth_mode = "REGISTER"
 
     def login(self):
         global nickname, password, auth_mode
@@ -169,7 +187,7 @@ class RegisterFrame(tk.Frame):
 
         self.reenter_password.bind("<Return>", lambda e: self.register())
 
-        self.register_btn = tk.Button(self.input_frame, text="register", font=("Arial", 12, "bold"),
+        self.register_btn = tk.Button(self.input_frame, text="Register", font=("Arial", 12, "bold"),
                             bg=chat_bg_color, fg=text_color, width=15, command=self.register)
         self.register_btn.pack(pady=20)
 
