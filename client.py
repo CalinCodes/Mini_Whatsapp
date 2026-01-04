@@ -152,6 +152,49 @@ class ConversationsFrame(tk.Frame):
         self.conversations_listbox.pack(fill="both", expand=True)
         self.conversations_listbox.bind("<<ListboxSelect>>", self.on_conversation_select)
 
+        self.chat_display = tk.Text(self.right_panel, 
+                                     bg=chat_bg_color, 
+                                     fg=text_color, 
+                                     state="disabled", 
+                                     font=("Arial", 16))
+        self.chat_display.pack(fill="both", expand=True, pady=(0, 10))
+
+        self.message_entry = tk.Entry(self.right_panel, 
+                                       font=("Arial", 16),
+                                       bg=chat_bg_color, 
+                                       fg=text_color)
+        self.message_entry.pack(fill="x")
+        self.message_entry.bind("<Return>", self.send_private_message)
+    def open_new_chat(self):
+    def on_conversation_select(self, event):
+        selection = event.widget.curselection()
+        if selection:
+            index = selection[0]
+            nickname = event.widget.get(index)
+            self.active_conversation = nickname
+            self.load_conversation(nickname)
+    def display_conversation(self, username):
+        self.chat_display.config(state="normal")
+        self.chat_display.delete(1.0, tk.END)
+        
+        if username in self.conversations:
+            for msg in self.conversations[username]:
+                self.chat_display.insert(tk.END, msg + "\n")
+        
+        self.chat_display.see(tk.END)
+        self.chat_display.config(state="disabled")
+    def send_private_message(self, event):
+        if not self.active_conversation:
+            return
+        
+        msg = self.message_entry.get()
+        if msg.strip() == "":
+            return
+        
+        self.message_entry.delete(0, tk.END)
+        
+        client.send(f"PRIVATE_MSG:{self.active_conversation}:{msg}".encode("ascii"))
+
 receive_thread = threading.Thread(target=receive, daemon=True)
 receive_thread.start()
 
