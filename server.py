@@ -14,14 +14,14 @@ server.listen()
 clients = {}
 
 def broadcast(message):
-    for client in clients:
-        client.send(message)
+    for client_socket in clients.values():
+        client_socket.send(message)
 
 def send_private(recipient_nickname, message):
-    for i, nickname in enumerate(clients.values()):
-        if nickname == recipient_nickname:
-            list(clients.keys())[i].send(message)
-            break
+    if recipient_nickname in clients:
+        clients[recipient_nickname].send(message)
+    else:
+        print(f"User {recipient_nickname} not found or offline")
 
 def handle(client, nickname):
     while True:
