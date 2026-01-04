@@ -38,6 +38,20 @@ def receive():
                 if root:
                     root.after(0, lambda: show_error("Wrong password! Please try again."))
                 password = ""
+            elif message.startswith('PRIVATE:'):
+                parts = message.split(':', 2)
+                if len(parts) >= 3:
+                    sender = parts[1]
+                    content = parts[2]
+                    formatted_msg = f"{sender}: {content}"
+                    root.after(0, lambda s=sender, m=formatted_msg: 
+                              conversations_frame.add_message_to_conversation(s, m))
+            elif message.startswith('USER_FOUND:'):
+                username = message.split(':', 1)[1]
+                root.after(0, lambda u=username: 
+                          conversations_frame.add_message_to_conversation(u, f"--- Chat started with {u} ---"))
+            elif message == 'USER_NOT_FOUND':
+                root.after(0, lambda: messagebox.showerror("Error", "User not found or not online!"))
             else:
                 root.after(0, lambda m=message: chat_frame.display_message(m))
         except:
