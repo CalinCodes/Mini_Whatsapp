@@ -16,6 +16,7 @@ nickname = ""
 password = ""
 bg_color = "#9CAB84"
 chat_bg_color = "#F6F0D7"
+top_bar_color = "#5A6751"
 text_color = "#36656B"
 root = tk.Tk()
 root.title("Mini WhatsApp")
@@ -87,6 +88,9 @@ def show_chat():
     global register_frame
     if 'register_frame' in globals():
         register_frame.pack_forget()
+
+    chat_frame.update_username_display()
+    chat_frame.pack(fill="both", expand=True)
 
     chat_frame.pack(fill="both", expand=True)
 
@@ -208,6 +212,14 @@ class ChatFrame(tk.Frame):
         super().__init__(master)
         self.configure(bg=bg_color)
 
+        self.top_bar = tk.Frame(self, bg=top_bar_color, height=35)
+        self.top_bar.pack(fill="x", side="top")
+        self.top_bar.pack_propagate(False)
+
+        self.username_label = tk.Label(self.top_bar, text="", 
+                          font=("Arial", 12, "bold"), bg=top_bar_color, fg="white")
+        self.username_label.pack(side="right", padx=20, pady=5)
+
         self.entry = tk.Entry(self, font=("Arial", 18), bg=chat_bg_color, fg=text_color)
         self.entry.pack(pady=10, padx=20, fill="x", side="bottom")
 
@@ -215,6 +227,9 @@ class ChatFrame(tk.Frame):
         self.chat.pack(pady=20, padx=20, fill="both", expand=True)
 
         self.entry.bind("<Return>", self.on_enter)
+    
+    def update_username_display(self):
+        self.username_label.config(text=f"Logged in as: {nickname}")
 
     def display_message(self, msg):
         self.chat.config(state="normal")
