@@ -166,13 +166,54 @@ class ConversationsFrame(tk.Frame):
         self.message_entry.pack(fill="x")
         self.message_entry.bind("<Return>", self.send_private_message)
     def open_new_chat(self):
+        search_window = tk.Toplevel(self)
+        search_window.title("Search User")
+        search_window.geometry("400x250")
+        search_window.configure(bg=bg_color)
+        
+        title_label = tk.Label(search_window, text="Start New Chat", 
+                               font=("Arial", 16, "bold"), 
+                               bg=bg_color, fg="white")
+        title_label.pack(pady=20)
+        
+        username_label = tk.Label(search_window, text="Enter username:", 
+                                   font=("Arial", 12), 
+                                   bg=bg_color, fg="white")
+        username_label.pack(pady=5)
+        
+        search_entry = tk.Entry(search_window, font=("Arial", 14), 
+                                width=25, 
+                                bg=chat_bg_color, fg=text_color)
+        search_entry.pack(pady=10)
+        search_entry.focus()
+        
+        def search_user():
+            username = search_entry.get().strip()
+            if username == "":
+                return
+            if username == nickname:
+                messagebox.showwarning("Invalid", "You cannot chat with yourself!")
+                return
+            
+            client.send(f"SEARCH_USER:{username}".encode('ascii'))
+            search_window.destroy()
+        
+        search_entry.bind("<Return>", lambda e: search_user())
+        
+        search_btn = tk.Button(search_window, text="Search", 
+                               font=("Arial", 12, "bold"),
+                               bg=chat_bg_color, fg=text_color, 
+                               width=15, 
+                               command=search_user)
+        search_btn.pack(pady=20)
+    
     def on_conversation_select(self, event):
         selection = event.widget.curselection()
         if selection:
             index = selection[0]
             nickname = event.widget.get(index)
             self.active_conversation = nickname
-            self.load_conversation(nickname)
+            self.display_conversation(nickname)
     def display_conversation(self, username):
         self.chat_display.config(state="normal")
         self.chat_display.delete(1.0, tk.END)
@@ -194,12 +235,23 @@ class ConversationsFrame(tk.Frame):
         self.message_entry.delete(0, tk.END)
         
         client.send(f"PRIVATE_MSG:{self.active_conversation}:{msg}".encode("ascii"))
+    
+    def add_message_to_conversation(self, username, message):
+        if username not in self.conversations:
+            self.conversations[username] = []
+            self.conversations_listbox.insert(tk.END, username)
+        
+        self.conversations[username].append(message)
+        
+        if self.active_conversation == username:
+            self.display_conversation(username)
 
 receive_thread = threading.Thread(target=receive, daemon=True)
 receive_thread.start()
 
 login_frame = LoginFrame(root, on_success=lambda: show_chat())
 chat_frame = ChatFrame(root)
+conversations_frame = ConversationsFrame(root)
 
 login_frame.pack(fill="both", expand=True)
 
