@@ -22,15 +22,21 @@ def handle(client):
     while True:
         try:
             message = client.recv(1024)
+            if not message:
+                break
             broadcast(message)
         except:
-            index = clients.index(client)
-            clients.remove(client)
-            client.close()
-            nickname = nicknames[index]
-            broadcast(f'{nickname} left the chat!'.encode('ascii'))
-            nicknames.remove(nickname)
             break
+
+    try:
+        index = clients.index(client)
+        clients.remove(client)
+        client.close()
+        nickname = nicknames[index]
+        broadcast(f'{nickname} left the chat!'.encode('ascii'))
+        nicknames.remove(nickname)
+    except:
+        pass
 
 def receive():
     while True:
