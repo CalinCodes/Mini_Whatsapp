@@ -35,6 +35,12 @@ def handle(client, nickname):
                     private_msg = f"PRIVATE:{nickname}:{content}"
                     send_private(recipient, private_msg.encode('ascii'))
                     client.send(f"PRIVATE:{recipient}:{content}".encode('ascii'))
+            elif message.startswith("SEARCH_USER:"):
+                username = message.split(":", 1)[1]
+                if search_user(username):
+                    client.send(f"USER_FOUND:{username}".encode('ascii'))
+                else:
+                    client.send("USER_NOT_FOUND".encode('ascii'))
             else:   
                 broadcast(message.encode('ascii'))
         except:
@@ -134,6 +140,17 @@ def login_user(username, password):
         print("Login failed: User not found.")
     
     return False
+
+def search_user(username):
+    """Check if a user exists in the database"""
+    con = sqlite3.connect("user_data.db")
+    cur = con.cursor()
+    
+    cur.execute("SELECT username FROM users WHERE username = ?", (username,))
+    res = cur.fetchone()
+    con.close()
+    
+    return res is not None
 
 con = setup_db()
 print('Server is listening...')
