@@ -35,42 +35,59 @@ def handle(client):
 def receive():
     while True:
         client, address = server.accept()
-        print(f'Connected with {str(address)}')
+        print(f'Connected with {address}')
 
-        authenticated = False
-        nickname = None
-        
-        while not authenticated:
-            client.send('NICK'.encode('ascii'))
-            nickname = client.recv(1024).decode('ascii')
-            client.send('PASS'.encode('ascii'))
-            password = client.recv(1024).decode('ascii')
+        def auth_client(client):
+            while True:
+                client.send(b'AUTH_MODE')
+                mode = client.recv(1024).decode('ascii')
 
-            con = sqlite3.connect("user_data.db")
-            cur = con.cursor()
-            cur.execute("SELECT password_hash FROM users WHERE username = ?", (nickname,))
-            user_exists = cur.fetchone()
-            con.close()
+                client.send(b'NICK')
+                nickname = client.recv(1024).decode('ascii')
 
-            if not user_exists:
-                register_user(nickname, password)
-                client.send('USER_CREATED'.encode('ascii'))
-                authenticated = True
-            elif login_user(nickname, password):
-                client.send('LOGIN_SUCCESS'.encode('ascii'))
-                authenticated = True
-            else:
-                client.send('WRONG_PASSWORD'.encode('ascii'))
-        
-        nicknames.append(nickname)
-        clients.append(client)
+                client.send(b'PASS')
+                password = client.recv(1024).decode('ascii')
 
-        print(f'Nickname of the client is {nickname}!\n')
-        broadcast(f'{nickname} joined the chat!\n'.encode('ascii'))
-        client.send('Connected to the server!\n'.encode('ascii'))
+                con = sqlite3.connect("user_data.db")
+                cur = con.cursor()
+                cur.execute("SELECT password_hash FROM users WHERE username = ?", (nickname,))
+                user = cur.fetchone()
+                con.close()
 
-        thread = threading.Thread(target=handle, args=(client,))
-        thread.start()
+                if mode == "LOGIN":
+                    if not user:
+                        client.send(b'USER_NOT_FOUND')
+                        continue
+                    if login_user(nickname, password):
+                        client.send(b'LOGIN_SUCCESS')
+                        break
+                    else:
+                        client.send(b'WRONG_PASSWORD')
+                        continue
+
+                elif mode == "REGISTER":
+                    if user:
+                        client.send(b'USER_EXISTS')
+                        continue
+
+                    client.send(b'REENTER_PASS')
+                    reentered = client.recv(1024).decode('ascii')
+
+                    if password != reentered:
+                        client.send(b'WRONG_PASSWORD')
+                        continue
+
+                    register_user(nickname, password)
+                    client.send(b'USER_CREATED')
+                    break
+
+            nicknames.append(nickname)
+            clients.append(client)
+            broadcast(f'{nickname} joined the chat!\n'.encode('ascii'))
+
+            threading.Thread(target=handle, args=(client,), daemon=True).start()
+
+        threading.Thread(target=auth_client, args=(client,), daemon=True).start()
 
 def setup_db():
     con = sqlite3.connect("user_data.db")
