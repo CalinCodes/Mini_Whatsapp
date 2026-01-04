@@ -69,7 +69,15 @@ def show_error(msg):
 
 def show_chat():
     login_frame.pack_forget()
+    conversations_frame.pack(fill="both", expand=True)
+
+def show_public_chat():
+    conversations_frame.pack_forget()
     chat_frame.pack(fill="both", expand=True)
+
+def show_private_chats():
+    chat_frame.pack_forget()
+    conversations_frame.pack(fill="both", expand=True)
 
 class LoginFrame(tk.Frame):
     def __init__(self, master, on_success):
@@ -119,6 +127,12 @@ class ChatFrame(tk.Frame):
         super().__init__(master)
         self.configure(bg=bg_color)
 
+        self.nav_btn = tk.Button(self, text="Private Chats", 
+                                 font=("Arial", 12, "bold"),
+                                 bg=chat_bg_color, fg=text_color,
+                                 command=show_private_chats)
+        self.nav_btn.pack(pady=10, padx=20, anchor="ne")
+
         self.entry = tk.Entry(self, font=("Arial", 18), bg=chat_bg_color, fg=text_color)
         self.entry.pack(pady=10, padx=20, fill="x", side="bottom")
 
@@ -147,10 +161,19 @@ class ConversationsFrame(tk.Frame):
         self.conversations = {}
         self.active_conversation = None
 
-        self.left_panel = tk.Frame(self, bg=bg_color, width=300)
+        self.nav_btn = tk.Button(self, text="Public Chat", 
+                                 font=("Arial", 12, "bold"),
+                                 bg=chat_bg_color, fg=text_color,
+                                 command=show_public_chat)
+        self.nav_btn.pack(pady=10, padx=20, anchor="ne")
+
+        container = tk.Frame(self, bg=bg_color)
+        container.pack(fill="both", expand=True)
+
+        self.left_panel = tk.Frame(container, bg=bg_color, width=300)
         self.left_panel.pack(side="left", fill="y", padx=10, pady=10)
 
-        self.right_panel = tk.Frame(self, bg=bg_color)
+        self.right_panel = tk.Frame(container, bg=bg_color)
         self.right_panel.pack(side="right", fill="both", expand=True, padx=10, pady=10)
 
         self.new_chat_btn = tk.Button(self.left_panel, text="New Chat", 
