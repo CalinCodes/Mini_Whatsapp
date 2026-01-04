@@ -139,6 +139,19 @@ class ConversationsFrame(tk.Frame):
         self.right_panel = tk.Frame(self, bg=bg_color)
         self.right_panel.pack(side="right", fill="both", expand=True, padx=10, pady=10)
 
+        self.new_chat_btn = tk.Button(self.left_panel, text="New Chat", 
+                                       font=("Arial", 12, "bold"),
+                                       bg=chat_bg_color, fg=text_color, 
+                                       command=self.open_new_chat)
+        self.new_chat_btn.pack(pady=10, fill="x")
+
+        self.conversations_listbox = tk.Listbox(self.left_panel, 
+                                                 font=("Arial", 14),
+                                                 bg=chat_bg_color, 
+                                                 fg=text_color)
+        self.conversations_listbox.pack(fill="both", expand=True)
+        self.conversations_listbox.bind("<<ListboxSelect>>", self.on_conversation_select)
+
 receive_thread = threading.Thread(target=receive, daemon=True)
 receive_thread.start()
 
