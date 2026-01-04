@@ -125,6 +125,19 @@ class ChatFrame(tk.Frame):
             return
         self.entry.delete(0, tk.END)
         client.send(f"{nickname}: {msg}".encode("ascii"))
+class ConversationsFrame(tk.Frame):
+    def __init__(self, master):
+        super().__init__(master)
+        self.configure(bg=bg_color)
+
+        self.conversations = {}
+        self.active_conversation = None
+
+        self.left_panel = tk.Frame(self, bg=bg_color, width=300)
+        self.left_panel.pack(side="left", fill="y", padx=10, pady=10)
+
+        self.right_panel = tk.Frame(self, bg=bg_color)
+        self.right_panel.pack(side="right", fill="both", expand=True, padx=10, pady=10)
 
 receive_thread = threading.Thread(target=receive, daemon=True)
 receive_thread.start()
