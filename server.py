@@ -14,29 +14,41 @@ server.listen()
 clients = []
 nicknames = []
 
-def broadcast(message):
+def broadcast(message, image_data=None):
     for client in clients:
-        client.send(message)
+        try:
+            if image_data:
+                client.send(b"IMG_MSG")
+                size = str(len(image_data)).zfill(10)
+                client.send(size.encode('ascii'))
+                client.sendall(image_data)
+                client.send(message)
+            else:
+                client.send(message)
+        except:
+            continue
 
 def handle(client):
     while True:
         try:
             message = client.recv(1024)
-            if not message:
-                break
-            broadcast(message)
+            if not message: break
+            
+            decoded = message.decode('ascii')
+            if ":" in decoded:
+                nick = decoded.split(':')[0].strip()
+                con = sqlite3.connect("user_data.db")
+                cur = con.cursor()
+                cur.execute("SELECT profile_pic FROM users WHERE username = ?", (nick,))
+                res = cur.fetchone()
+                con.close()
+                
+                pic_data = res[0] if res and res[0] else None
+                broadcast(message, image_data=pic_data)
+            else:
+                broadcast(message)
         except:
             break
-
-    try:
-        index = clients.index(client)
-        clients.remove(client)
-        client.close()
-        nickname = nicknames[index]
-        broadcast(f'{nickname} left the chat!'.encode('ascii'))
-        nicknames.remove(nickname)
-    except:
-        pass
 
 def receive():
     while True:
@@ -54,6 +66,11 @@ def receive():
                 client.send(b'PASS')
                 password = client.recv(1024).decode('ascii')
 
+                client.send(b'REENTER_PASS')
+                reenter_password = client.recv(1024).decode('ascii')
+                if mode == "REGISTER" and password != reenter_password:
+                    client.send(b'PASS_MISMATCH')
+                    continue
                 con = sqlite3.connect("user_data.db")
                 cur = con.cursor()
                 cur.execute("SELECT password_hash FROM users WHERE username = ?", (nickname,))

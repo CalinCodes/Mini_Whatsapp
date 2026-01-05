@@ -26,12 +26,68 @@ root = tk.Tk()
 root.title("Mini WhatsApp")
 root.geometry("1280x720")
 
+recv_buffer = b""
+
+def recv_exact(n):
+    global recv_buffer
+    while len(recv_buffer) < n:
+        chunk = client.recv(4096)
+        if not chunk:
+            return None
+        recv_buffer += chunk
+    result = recv_buffer[:n]
+    recv_buffer = recv_buffer[n:]
+    return result
+
+def recv_until_complete():
+    global recv_buffer
+    if not recv_buffer:
+        chunk = client.recv(4096)
+        if not chunk:
+            return None
+        recv_buffer += chunk
+    
+    if recv_buffer.startswith(b'IMG_MSG'):
+        recv_buffer = recv_buffer[7:]
+
+        while len(recv_buffer) < 10:
+            recv_buffer += client.recv(4096)
+        size_header = recv_buffer[:10]
+        recv_buffer = recv_buffer[10:]
+        data_size = int(size_header.decode('ascii'))
+
+        while len(recv_buffer) < data_size:
+            recv_buffer += client.recv(4096)
+        img_bytes = recv_buffer[:data_size]
+        recv_buffer = recv_buffer[data_size:]
+
+        while len(recv_buffer) == 0:
+            recv_buffer += client.recv(4096)
+
+        msg_len = min(len(recv_buffer), 1024)
+        text_msg = recv_buffer[:msg_len].decode('ascii', errors='ignore')
+        recv_buffer = recv_buffer[msg_len:]
+
+        return ('IMG_MSG', img_bytes, text_msg)
+    
+    message = recv_buffer.decode('ascii', errors='ignore')
+    recv_buffer = b""
+    return ('TEXT', message)
+
 def receive():
     global authenticated, nickname, password
 
     while True:
         try:
-            message = client.recv(1024).decode('ascii')
+            result = recv_until_complete()
+            if result is None:
+                break
+
+            if result[0] == 'IMG_MSG':
+                _, img_bytes, text_msg = result
+                root.after(0, lambda m=text_msg, i=img_bytes: chat_frame.display_message_with_pic(m, i))
+                continue
+            message = result[1]
 
             if message == 'AUTH_MODE':
                 auth_mode_event.wait()
@@ -45,7 +101,7 @@ def receive():
 
             elif message == 'REENTER_PASS':
                 client.send(register_frame.reenter_password.get().encode('ascii'))
-            
+
             elif message == 'PROFILE_PIC':
                 if 'register_frame' in globals() and hasattr(register_frame, 'final_img_data'):
                     data = register_frame.final_img_data
@@ -70,12 +126,17 @@ def receive():
             elif message == 'WRONG_PASSWORD':
                 root.after(0, lambda: show_error("Wrong password"))
                 reset_auth_state()
+            
+            elif message == 'PASS_MISMATCH':
+                root.after(0, lambda: show_error("Passwords do not match"))
+                reset_auth_state()
 
             else:
                 if authenticated:
                     root.after(0, lambda m=message: chat_frame.display_message(m))
 
-        except:
+        except Exception as e:
+            print(f"Error in receive: {e}")
             client.close()
             break
 
@@ -221,7 +282,6 @@ class RegisterFrame(tk.Frame):
                             bg=chat_bg_color, fg=text_color, width=15, command=self.register)
         self.register_btn.pack(pady=20)
 
-    # Inside RegisterFrame.register
     def register(self):
         global nickname, password, auth_mode, img
         if not self.user.get() or not self.password.get() or not self.img_path:
@@ -229,7 +289,7 @@ class RegisterFrame(tk.Frame):
             return
             
         raw_img = Image.open(self.img_path).convert("RGB")
-        raw_img.thumbnail((128, 128)) # Resize to max 128x128
+        raw_img.thumbnail((128, 128))
         
         byte_io = io.BytesIO()
         raw_img.save(byte_io, format='JPEG', quality=85)
@@ -286,6 +346,29 @@ class ChatFrame(tk.Frame):
             return
         self.entry.delete(0, tk.END)
         client.send(f"{nickname}: {msg}".encode("ascii"))
+
+    def display_message_with_pic(self, msg, img_bytes):
+        self.chat.config(state="normal")
+        
+        if img_bytes:
+            try:
+                stream = io.BytesIO(img_bytes)
+                pil_img = Image.open(stream).convert("RGB")
+                pil_img.thumbnail((30, 30))
+                tk_img = ImageTk.PhotoImage(pil_img)
+                
+                if not hasattr(self, 'image_refs'):
+                    self.image_refs = []
+                self.image_refs.append(tk_img)
+                
+                self.chat.image_create(tk.END, image=tk_img)
+                self.chat.insert(tk.END, " ")
+            except Exception as e:
+                print(f"Error displaying image: {e}")
+
+        self.chat.insert(tk.END, msg + "\n")
+        self.chat.see(tk.END)
+        self.chat.config(state="disabled")
 
 receive_thread = threading.Thread(target=receive, daemon=True)
 receive_thread.start()
