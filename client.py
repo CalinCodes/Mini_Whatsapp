@@ -446,10 +446,10 @@ class ConversationsFrame(tk.Frame):
         container.pack(fill="both", expand=True)
 
         self.left_panel = tk.Frame(container, bg=bg_color, width=300)
-        self.left_panel.pack(side="left", fill="y", padx=10, pady=10)
+        self.left_panel.pack(side="left", fill="y", padx=(20, 10), pady=20)
 
         self.right_panel = tk.Frame(container, bg=bg_color)
-        self.right_panel.pack(side="right", fill="both", expand=True, padx=10, pady=10)
+        self.right_panel.pack(side="right", fill="both", expand=True)
 
         self.new_chat_btn = tk.Button(self.left_panel, text="New Chat", 
                                        font=("Arial", 12, "bold"),
@@ -468,14 +468,14 @@ class ConversationsFrame(tk.Frame):
                                      bg=chat_bg_color, 
                                      fg=text_color, 
                                      state="disabled", 
-                                     font=("Arial", 16))
-        self.chat_display.pack(fill="both", expand=True, pady=(0, 10))
+                                     font=("Arial", 22))
+        self.chat_display.pack(fill="both", expand=True, pady=20, padx=20)
 
         self.message_entry = tk.Entry(self.right_panel, 
-                                       font=("Arial", 16),
+                                       font=("Arial", 18),
                                        bg=chat_bg_color, 
                                        fg=text_color)
-        self.message_entry.pack(fill="x")
+        self.message_entry.pack(fill="x", pady=10, padx=20)
         self.message_entry.bind("<Return>", self.send_private_message)
 
     def open_new_chat(self):
