@@ -189,6 +189,7 @@ def show_chat():
     if 'register_frame' in globals():
         register_frame.pack_forget()
 
+    conversations_frame.update_username_display()
     conversations_frame.pack(fill="both", expand=True)
 
 def show_public_chat():
@@ -203,6 +204,7 @@ def show_public_chat():
 
 def show_private_chats():
     chat_frame.pack_forget()
+    conversations_frame.update_username_display()
     conversations_frame.pack(fill="both", expand=True)
 
 class LoginFrame(tk.Frame):
@@ -420,11 +422,19 @@ class ConversationsFrame(tk.Frame):
         self.conversations = {}
         self.active_conversation = None
 
-        self.nav_btn = tk.Button(self, text="Public Chat", 
-                                 font=("Arial", 12, "bold"),
+        self.top_bar = tk.Frame(self, bg=top_bar_color, height=35)
+        self.top_bar.pack(fill="x", side="top")
+        self.top_bar.pack_propagate(False)
+
+        self.nav_btn = tk.Button(self.top_bar, text="Public Chat", 
+                                 font=("Arial", 10, "bold"),
                                  bg=chat_bg_color, fg=text_color,
                                  command=show_public_chat)
-        self.nav_btn.pack(pady=10, padx=20, anchor="ne")
+        self.nav_btn.pack(side="left", padx=10, pady=5)
+
+        self.username_label = tk.Label(self.top_bar, text="", 
+                          font=("Arial", 12, "bold"), bg=top_bar_color, fg="white")
+        self.username_label.pack(side="right", padx=20, pady=5)
 
         container = tk.Frame(self, bg=bg_color)
         container.pack(fill="both", expand=True)
@@ -533,6 +543,9 @@ class ConversationsFrame(tk.Frame):
         
         self.message_entry.delete(0, tk.END)
         client.send(f"PRIVATE_MSG:{self.active_conversation}:{msg}".encode("ascii"))
+    
+    def update_username_display(self):
+        self.username_label.config(text=f"Logged in as: {nickname}")
     
     def add_message_to_conversation(self, username, message):
         if username not in self.conversations:
