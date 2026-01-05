@@ -22,6 +22,7 @@ text_color = "#36656B"
 root = tk.Tk()
 root.title("Mini WhatsApp")
 root.geometry("1280x720")
+root.minsize(640, 360)
 
 recv_buffer = b""
 
@@ -182,28 +183,35 @@ def reset_auth_state():
 def show_error(msg):
     messagebox.showerror("Error", msg)
 
+def refresh_window():
+    root.update_idletasks()
+    root.update()
+
 def show_chat():
     login_frame.pack_forget()
-
     global register_frame
     if 'register_frame' in globals():
         register_frame.pack_forget()
 
+    conversations_frame.update_username_display()
     conversations_frame.pack(fill="both", expand=True)
+    refresh_window()
 
 def show_public_chat():
     conversations_frame.pack_forget()
-
     global register_frame
     if 'register_frame' in globals():
         register_frame.pack_forget()
 
     chat_frame.update_username_display()
     chat_frame.pack(fill="both", expand=True)
+    refresh_window()
 
 def show_private_chats():
     chat_frame.pack_forget()
+    conversations_frame.update_username_display()
     conversations_frame.pack(fill="both", expand=True)
+    refresh_window()
 
 class LoginFrame(tk.Frame):
     def __init__(self, master, on_success):
@@ -252,6 +260,7 @@ class LoginFrame(tk.Frame):
         register_frame = RegisterFrame(root, on_success=lambda: show_chat())
         register_frame.pack(fill="both", expand=True)
         auth_mode = "REGISTER"
+        refresh_window()
 
     def login(self):
         global nickname, password, auth_mode
@@ -420,47 +429,57 @@ class ConversationsFrame(tk.Frame):
         self.conversations = {}
         self.active_conversation = None
 
-        self.nav_btn = tk.Button(self, text="Public Chat", 
-                                 font=("Arial", 12, "bold"),
+        self.top_bar = tk.Frame(self, bg=top_bar_color, height=35)
+        self.top_bar.pack(fill="x", side="top")
+        self.top_bar.pack_propagate(False)
+
+        self.nav_btn = tk.Button(self.top_bar, text="Public Chat", 
+                                 font=("Arial", 10, "bold"),
                                  bg=chat_bg_color, fg=text_color,
                                  command=show_public_chat)
-        self.nav_btn.pack(pady=10, padx=20, anchor="ne")
+        self.nav_btn.pack(side="left", padx=10, pady=5)
+
+        self.username_label = tk.Label(self.top_bar, text="", 
+                          font=("Arial", 12, "bold"), bg=top_bar_color, fg="white")
+        self.username_label.pack(side="right", padx=20, pady=5)
 
         container = tk.Frame(self, bg=bg_color)
         container.pack(fill="both", expand=True)
 
         self.left_panel = tk.Frame(container, bg=bg_color, width=300)
-        self.left_panel.pack(side="left", fill="y", padx=10, pady=10)
+        self.left_panel.pack(side="left", fill="y", padx=(20, 10), pady=(20, 10))
 
         self.right_panel = tk.Frame(container, bg=bg_color)
-        self.right_panel.pack(side="right", fill="both", expand=True, padx=10, pady=10)
+        self.right_panel.pack(side="right", fill="both", expand=True)
 
         self.new_chat_btn = tk.Button(self.left_panel, text="New Chat", 
                                        font=("Arial", 12, "bold"),
                                        bg=chat_bg_color, fg=text_color, 
                                        command=self.open_new_chat)
-        self.new_chat_btn.pack(pady=10, fill="x")
+        self.new_chat_btn.pack(pady=(0, 10), fill="x")
 
         self.conversations_listbox = tk.Listbox(self.left_panel, 
                                                  font=("Arial", 14),
                                                  bg=chat_bg_color, 
-                                                 fg=text_color)
+                                                 fg=text_color,
+                                                 relief="solid",
+                                                 borderwidth=1)
         self.conversations_listbox.pack(fill="both", expand=True)
         self.conversations_listbox.bind("<<ListboxSelect>>", self.on_conversation_select)
+
+        self.message_entry = tk.Entry(self.right_panel, 
+                                       font=("Arial", 18),
+                                       bg=chat_bg_color, 
+                                       fg=text_color)
+        self.message_entry.pack(fill="x", pady=10, padx=20, side="bottom")
+        self.message_entry.bind("<Return>", self.send_private_message)
 
         self.chat_display = tk.Text(self.right_panel, 
                                      bg=chat_bg_color, 
                                      fg=text_color, 
                                      state="disabled", 
-                                     font=("Arial", 16))
-        self.chat_display.pack(fill="both", expand=True, pady=(0, 10))
-
-        self.message_entry = tk.Entry(self.right_panel, 
-                                       font=("Arial", 16),
-                                       bg=chat_bg_color, 
-                                       fg=text_color)
-        self.message_entry.pack(fill="x")
-        self.message_entry.bind("<Return>", self.send_private_message)
+                                     font=("Arial", 22))
+        self.chat_display.pack(fill="both", expand=True, pady=20, padx=20)
 
     def open_new_chat(self):
         search_window = tk.Toplevel(self)
@@ -533,6 +552,9 @@ class ConversationsFrame(tk.Frame):
         
         self.message_entry.delete(0, tk.END)
         client.send(f"PRIVATE_MSG:{self.active_conversation}:{msg}".encode("ascii"))
+    
+    def update_username_display(self):
+        self.username_label.config(text=f"Logged in as: {nickname}")
     
     def add_message_to_conversation(self, username, message):
         if username not in self.conversations:
