@@ -464,19 +464,19 @@ class ConversationsFrame(tk.Frame):
         self.conversations_listbox.pack(fill="both", expand=True)
         self.conversations_listbox.bind("<<ListboxSelect>>", self.on_conversation_select)
 
+        self.message_entry = tk.Entry(self.right_panel, 
+                                       font=("Arial", 18),
+                                       bg=chat_bg_color, 
+                                       fg=text_color)
+        self.message_entry.pack(fill="x", pady=10, padx=20, side="bottom")
+        self.message_entry.bind("<Return>", self.send_private_message)
+
         self.chat_display = tk.Text(self.right_panel, 
                                      bg=chat_bg_color, 
                                      fg=text_color, 
                                      state="disabled", 
                                      font=("Arial", 22))
         self.chat_display.pack(fill="both", expand=True, pady=20, padx=20)
-
-        self.message_entry = tk.Entry(self.right_panel, 
-                                       font=("Arial", 18),
-                                       bg=chat_bg_color, 
-                                       fg=text_color)
-        self.message_entry.pack(fill="x", pady=10, padx=20)
-        self.message_entry.bind("<Return>", self.send_private_message)
 
     def open_new_chat(self):
         search_window = tk.Toplevel(self)
