@@ -14,14 +14,23 @@ server.listen()
 clients = {}
 
 def broadcast(message):
-    for client_socket in clients.values():
-        client_socket.send(message)
+    for client_socket in list(clients.values()):
+        try:
+            client_socket.send(message)
+        except:
+            pass
 
-def send_private(recipient_nickname, message):
+def send_private(recipient_nickname, message, sender_client=None):
     if recipient_nickname in clients:
-        clients[recipient_nickname].send(message)
+        try:
+            clients[recipient_nickname].send(message)
+            return True
+        except:
+            return False
     else:
-        print(f"User {recipient_nickname} not found or offline")
+        if sender_client:
+            sender_client.send("USER_OFFLINE".encode('ascii'))
+        return False
 
 def handle(client, nickname):
     while True:
@@ -33,12 +42,14 @@ def handle(client, nickname):
                     recipient = parts[1]
                     content = parts[2]
                     private_msg = f"PRIVATE:{nickname}:{content}"
-                    send_private(recipient, private_msg.encode('ascii'))
-                    client.send(f"PRIVATE:{recipient}:{content}".encode('ascii'))
+                    if send_private(recipient, private_msg.encode('ascii'), client):
+                        client.send(f"PRIVATE_SENT:{recipient}:{content}".encode('ascii'))
             elif message.startswith("SEARCH_USER:"):
                 username = message.split(":", 1)[1]
-                if search_user(username):
+                if search_user(username) and username in clients:
                     client.send(f"USER_FOUND:{username}".encode('ascii'))
+                elif search_user(username):
+                    client.send("USER_OFFLINE".encode('ascii'))
                 else:
                     client.send("USER_NOT_FOUND".encode('ascii'))
             else:   

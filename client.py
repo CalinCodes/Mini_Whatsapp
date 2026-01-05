@@ -9,6 +9,7 @@ client.connect(('127.0.0.1', 25565))
 authenticated = False
 nickname = ""
 password = ""
+login_ready = threading.Event()
 bg_color = "#9CAB84"
 chat_bg_color = "#F6F0D7"
 text_color = "#36656B"
@@ -23,6 +24,7 @@ def receive():
         try:
             message = client.recv(1024).decode('ascii')
             if message == 'NICK':
+                login_ready.wait()
                 client.send(nickname.encode('ascii'))
             elif message == 'PASS':
                 client.send(password.encode('ascii'))
@@ -46,12 +48,22 @@ def receive():
                     formatted_msg = f"{sender}: {content}"
                     root.after(0, lambda s=sender, m=formatted_msg: 
                               conversations_frame.add_message_to_conversation(s, m))
+            elif message.startswith('PRIVATE_SENT:'):
+                parts = message.split(':', 2)
+                if len(parts) >= 3:
+                    recipient = parts[1]
+                    content = parts[2]
+                    formatted_msg = f"You: {content}"
+                    root.after(0, lambda r=recipient, m=formatted_msg: 
+                              conversations_frame.add_message_to_conversation(r, m))
             elif message.startswith('USER_FOUND:'):
                 username = message.split(':', 1)[1]
                 root.after(0, lambda u=username: 
                           conversations_frame.add_message_to_conversation(u, f"--- Chat started with {u} ---"))
             elif message == 'USER_NOT_FOUND':
-                root.after(0, lambda: messagebox.showerror("Error", "User not found or not online!"))
+                root.after(0, lambda: messagebox.showerror("Error", "User not found!"))
+            elif message == 'USER_OFFLINE':
+                root.after(0, lambda: messagebox.showwarning("Offline", "User is offline!"))
             else:
                 root.after(0, lambda m=message: chat_frame.display_message(m))
         except:
@@ -120,7 +132,7 @@ class LoginFrame(tk.Frame):
         if nickname.strip() == "" or password.strip() == "":
             show_error("Please enter both username and password.")
             return
-        client.send(f"{nickname}".encode('ascii'))
+        login_ready.set()
 
 class ChatFrame(tk.Frame):
     def __init__(self, master):
@@ -283,13 +295,13 @@ class ConversationsFrame(tk.Frame):
         if self.active_conversation == username:
             self.display_conversation(username)
 
-receive_thread = threading.Thread(target=receive, daemon=True)
-receive_thread.start()
-
 login_frame = LoginFrame(root, on_success=lambda: show_chat())
 chat_frame = ChatFrame(root)
 conversations_frame = ConversationsFrame(root)
 
 login_frame.pack(fill="both", expand=True)
+
+receive_thread = threading.Thread(target=receive, daemon=True)
+receive_thread.start()
 
 root.mainloop()
