@@ -182,30 +182,35 @@ def reset_auth_state():
 def show_error(msg):
     messagebox.showerror("Error", msg)
 
+def refresh_window():
+    root.update_idletasks()
+    root.update()
+
 def show_chat():
     login_frame.pack_forget()
-
     global register_frame
     if 'register_frame' in globals():
         register_frame.pack_forget()
 
     conversations_frame.update_username_display()
     conversations_frame.pack(fill="both", expand=True)
+    refresh_window()
 
 def show_public_chat():
     conversations_frame.pack_forget()
-
     global register_frame
     if 'register_frame' in globals():
         register_frame.pack_forget()
 
     chat_frame.update_username_display()
     chat_frame.pack(fill="both", expand=True)
+    refresh_window()
 
 def show_private_chats():
     chat_frame.pack_forget()
     conversations_frame.update_username_display()
     conversations_frame.pack(fill="both", expand=True)
+    refresh_window()
 
 class LoginFrame(tk.Frame):
     def __init__(self, master, on_success):
@@ -254,6 +259,7 @@ class LoginFrame(tk.Frame):
         register_frame = RegisterFrame(root, on_success=lambda: show_chat())
         register_frame.pack(fill="both", expand=True)
         auth_mode = "REGISTER"
+        refresh_window()
 
     def login(self):
         global nickname, password, auth_mode
