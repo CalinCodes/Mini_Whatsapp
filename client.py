@@ -447,7 +447,7 @@ class ConversationsFrame(tk.Frame):
         container.pack(fill="both", expand=True)
 
         self.left_panel = tk.Frame(container, bg=bg_color, width=300)
-        self.left_panel.pack(side="left", fill="y", padx=(20, 10), pady=20)
+        self.left_panel.pack(side="left", fill="y", padx=(20, 10), pady=(20, 10))
 
         self.right_panel = tk.Frame(container, bg=bg_color)
         self.right_panel.pack(side="right", fill="both", expand=True)
@@ -456,12 +456,14 @@ class ConversationsFrame(tk.Frame):
                                        font=("Arial", 12, "bold"),
                                        bg=chat_bg_color, fg=text_color, 
                                        command=self.open_new_chat)
-        self.new_chat_btn.pack(pady=10, fill="x")
+        self.new_chat_btn.pack(pady=(0, 10), fill="x")
 
         self.conversations_listbox = tk.Listbox(self.left_panel, 
                                                  font=("Arial", 14),
                                                  bg=chat_bg_color, 
-                                                 fg=text_color)
+                                                 fg=text_color,
+                                                 relief="solid",
+                                                 borderwidth=1)
         self.conversations_listbox.pack(fill="both", expand=True)
         self.conversations_listbox.bind("<<ListboxSelect>>", self.on_conversation_select)
 
