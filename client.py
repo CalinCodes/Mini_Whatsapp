@@ -100,10 +100,13 @@ def receive():
                 client.send(password.encode('ascii'))
 
             elif message == 'REENTER_PASS':
-                client.send(register_frame.reenter_password.get().encode('ascii'))
+                if 'register_frame' in globals() and register_frame:
+                    client.send(register_frame.reenter_password.get().encode('ascii'))
+                else:
+                    client.send(''.encode('ascii'))  # Empty for login
 
             elif message == 'PROFILE_PIC':
-                if 'register_frame' in globals() and hasattr(register_frame, 'final_img_data'):
+                if 'register_frame' in globals() and register_frame and hasattr(register_frame, 'final_img_data'):
                     data = register_frame.final_img_data
                     size = str(len(data)).zfill(10) 
                     client.send(size.encode('ascii'))

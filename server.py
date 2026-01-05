@@ -66,11 +66,6 @@ def receive():
                 client.send(b'PASS')
                 password = client.recv(1024).decode('ascii')
 
-                client.send(b'REENTER_PASS')
-                reenter_password = client.recv(1024).decode('ascii')
-                if mode == "REGISTER" and password != reenter_password:
-                    client.send(b'PASS_MISMATCH')
-                    continue
                 con = sqlite3.connect("user_data.db")
                 cur = con.cursor()
                 cur.execute("SELECT password_hash FROM users WHERE username = ?", (nickname,))
@@ -89,6 +84,15 @@ def receive():
                         continue
 
                 elif mode == "REGISTER":
+                    if user:
+                        client.send(b'USER_EXISTS')
+                        continue
+                    
+                    client.send(b'REENTER_PASS')
+                    reenter_password = client.recv(1024).decode('ascii')
+                    if password != reenter_password:
+                        client.send(b'PASS_MISMATCH')
+                        continue
 
                     client.send(b'PROFILE_PIC')
                     
