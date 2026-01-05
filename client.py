@@ -22,6 +22,7 @@ text_color = "#36656B"
 root = tk.Tk()
 root.title("Mini WhatsApp")
 root.geometry("1280x720")
+root.minsize(640, 360)
 
 recv_buffer = b""
 
