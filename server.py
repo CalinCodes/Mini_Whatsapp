@@ -11,23 +11,9 @@ server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 server.bind((host, port))
 server.listen()
 
-# Using dictionary for nickname-to-socket mapping (Andrei's architecture)
 clients = {}
 
-def send_private(recipient_nickname, message, sender_client=None):
-    if recipient_nickname in clients:
-        try:
-            clients[recipient_nickname].send(message)
-            return True
-        except:
-            return False
-    else:
-        if sender_client:
-            sender_client.send("USER_OFFLINE".encode('ascii'))
-        return False
-
 def broadcast(message, image_data=None):
-    # Iterate through dictionary values (sockets)
     for client_socket in list(clients.values()):
         try:
             if image_data:
@@ -41,35 +27,49 @@ def broadcast(message, image_data=None):
         except:
             continue
 
+def send_private(recipient_nickname, message, sender_client=None):
+    if recipient_nickname in clients:
+        try:
+            clients[recipient_nickname].send(message)
+            return True
+        except:
+            return False
+    else:
+        if sender_client:
+            sender_client.send("USER_OFFLINE".encode('ascii'))
+        return False
+
 def handle(client, nickname):
     while True:
         try:
-            message_raw = client.recv(1024)
-            if not message_raw: break
+            message = client.recv(1024)
+            if not message:
+                break
             
-            message = message_raw.decode('ascii')
-            # Private Messaging
-            if message.startswith("PRIVATE_MSG:"):
-                parts = message.split(":", 2)
+            decoded = message.decode('ascii')
+            
+            # Private messages
+            if decoded.startswith("PRIVATE_MSG:"):
+                parts = decoded.split(":", 2)
                 if len(parts) >= 3:
                     recipient = parts[1]
                     content = parts[2]
                     private_msg = f"PRIVATE:{nickname}:{content}"
                     if send_private(recipient, private_msg.encode('ascii'), client):
                         client.send(f"PRIVATE_SENT:{recipient}:{content}".encode('ascii'))
-            # User Search
-            elif message.startswith("SEARCH_USER:"):
-                username = message.split(":", 1)[1]
+            # User search
+            elif decoded.startswith("SEARCH_USER:"):
+                username = decoded.split(":", 1)[1]
                 if search_user(username) and username in clients:
                     client.send(f"USER_FOUND:{username}".encode('ascii'))
                 elif search_user(username):
                     client.send("USER_OFFLINE".encode('ascii'))
                 else:
                     client.send("USER_NOT_FOUND".encode('ascii'))
-            # Public Broadcast with Profile Pics
+            # Broadcast with profile pictures
             else:
-                if ":" in message:
-                    sender_nick = message.split(':')[0].strip()
+                if ":" in decoded:
+                    sender_nick = decoded.split(':')[0].strip()
                     con = sqlite3.connect("user_data.db")
                     cur = con.cursor()
                     cur.execute("SELECT profile_pic FROM users WHERE username = ?", (sender_nick,))
@@ -77,24 +77,27 @@ def handle(client, nickname):
                     con.close()
                     
                     pic_data = res[0] if res and res[0] else None
-                    broadcast(message_raw, image_data=pic_data)
+                    broadcast(message, image_data=pic_data)
                 else:
-                    broadcast(message_raw)
+                    broadcast(message)
         except:
-            if nickname in clients:
-                del clients[nickname]
-            client.close()
-            broadcast(f'{nickname} left the chat!'.encode('ascii'))
             break
+    
+    if nickname in clients:
+        del clients[nickname]
+        client.close()
+        broadcast(f'{nickname} left the chat!'.encode('ascii'))
+        print(f'{nickname} left the chat!')
 
 def receive():
     while True:
         client, address = server.accept()
-        print(f'Connected with {address}')
+        print(f'Connected with {str(address)}')
 
         def auth_client(client):
-            while True:
-                try:
+            nickname = None
+            try:
+                while True:
                     client.send(b'AUTH_MODE')
                     mode = client.recv(1024).decode('ascii')
 
@@ -136,23 +139,26 @@ def receive():
                         size_header = client.recv(10).decode('ascii')
                         data_size = int(size_header)
                         
-                        profile_pic_data = b""
-                        while len(profile_pic_data) < data_size:
-                            chunk = client.recv(max(1024, data_size - len(profile_pic_data)))
-                            if not chunk: break
-                            profile_pic_data += chunk
+                        profile_pic_data = None
+                        if data_size > 0:
+                            profile_pic_data = b""
+                            while len(profile_pic_data) < data_size:
+                                chunk = client.recv(min(4096, data_size - len(profile_pic_data)))
+                                if not chunk: break
+                                profile_pic_data += chunk
 
                         register_user(nickname, password, profile_pic_data)
                         client.send(b'USER_CREATED')
                         break
-                except:
-                    client.close()
-                    return
 
-            # Store in the dictionary
-            clients[nickname] = client
-            broadcast(f'{nickname} joined the chat!\n'.encode('ascii'))
-            threading.Thread(target=handle, args=(client, nickname), daemon=True).start()
+                clients[nickname] = client
+                broadcast(f'{nickname} joined the chat!\n'.encode('ascii'))
+                print(f'Nickname of the client is {nickname}!\n')
+
+                threading.Thread(target=handle, args=(client, nickname), daemon=True).start()
+            except:
+                client.close()
+                return
 
         threading.Thread(target=auth_client, args=(client,), daemon=True).start()
 
@@ -173,29 +179,41 @@ def setup_db():
 def register_user(username, password, profile_pic=None):
     ph = PasswordHasher()
     password_hash = ph.hash(password)
+
     con = sqlite3.connect("user_data.db")
     cur = con.cursor()
+
     try:
         cur.execute("INSERT INTO users (username, password_hash, profile_pic) VALUES (?, ?, ?)", 
                    (username, password_hash, profile_pic))
         con.commit()
+        print(f"User '{username}' registered successfully!")
     except sqlite3.IntegrityError:
-        pass
+        print("Error: That username is already taken.")
+
     con.close()
 
 def login_user(username, password):
     ph = PasswordHasher()
+
     con = sqlite3.connect("user_data.db")
     cur = con.cursor()
+
     cur.execute("SELECT password_hash FROM users WHERE username = ?", (username,))
     res = cur.fetchone()
     con.close()
+    
     if res:
+        correct_hash = res[0]
         try:
-            ph.verify(res[0], password)
+            ph.verify(correct_hash, password)
+            print("Login successful! Welcome back.")
             return True
         except VerifyMismatchError:
-            return False
+            print("Login failed: Incorrect password.")
+    else:
+        print("Login failed: User not found.")
+    
     return False
 
 def search_user(username):

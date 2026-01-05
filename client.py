@@ -1,9 +1,7 @@
 import socket
 import threading
 import tkinter as tk
-from tkinter import messagebox
-from tkinter import Label
-from tkinter import filedialog
+from tkinter import messagebox, filedialog, Label
 from PIL import Image, ImageTk
 import io
 
@@ -17,8 +15,6 @@ password_event = threading.Event()
 authenticated = False
 nickname = ""
 password = ""
-login_ready = threading.Event()
-img = None
 bg_color = "#9CAB84"
 chat_bg_color = "#F6F0D7"
 top_bar_color = "#5A6751"
@@ -104,7 +100,7 @@ def receive():
                 if 'register_frame' in globals() and register_frame:
                     client.send(register_frame.reenter_password.get().encode('ascii'))
                 else:
-                    client.send(''.encode('ascii'))  # Empty for login
+                    client.send(''.encode('ascii'))
 
             elif message == 'PROFILE_PIC':
                 if 'register_frame' in globals() and register_frame and hasattr(register_frame, 'final_img_data'):
@@ -128,9 +124,14 @@ def receive():
                 reset_auth_state()
 
             elif message == 'WRONG_PASSWORD':
-                if root:
-                    root.after(0, lambda: show_error("Wrong password! Please try again."))
-                password = ""
+                root.after(0, lambda: show_error("Wrong password"))
+                reset_auth_state()
+            
+            elif message == 'PASS_MISMATCH':
+                root.after(0, lambda: show_error("Passwords do not match"))
+                reset_auth_state()
+
+            # Private messaging
             elif message.startswith('PRIVATE:'):
                 parts = message.split(':', 2)
                 if len(parts) >= 3:
@@ -139,6 +140,7 @@ def receive():
                     formatted_msg = f"{sender}: {content}"
                     root.after(0, lambda s=sender, m=formatted_msg: 
                               conversations_frame.add_message_to_conversation(s, m))
+
             elif message.startswith('PRIVATE_SENT:'):
                 parts = message.split(':', 2)
                 if len(parts) >= 3:
@@ -155,10 +157,6 @@ def receive():
                 root.after(0, lambda: messagebox.showerror("Error", "User not found!"))
             elif message == 'USER_OFFLINE':
                 root.after(0, lambda: messagebox.showwarning("Offline", "User is offline!"))
-            elif message == 'PASS_MISMATCH':
-                root.after(0, lambda: show_error("Passwords do not match"))
-                reset_auth_state()
-
             else:
                 if authenticated:
                     root.after(0, lambda m=message: chat_frame.display_message(m))
@@ -186,6 +184,11 @@ def show_error(msg):
 
 def show_chat():
     login_frame.pack_forget()
+
+    global register_frame
+    if 'register_frame' in globals():
+        register_frame.pack_forget()
+
     conversations_frame.pack(fill="both", expand=True)
 
 def show_public_chat():
@@ -196,8 +199,6 @@ def show_public_chat():
         register_frame.pack_forget()
 
     chat_frame.update_username_display()
-    chat_frame.pack(fill="both", expand=True)
-
     chat_frame.pack(fill="both", expand=True)
 
 def show_private_chats():
@@ -323,7 +324,6 @@ class RegisterFrame(tk.Frame):
         if not self.user.get() or not self.password.get() or not self.img_path:
             show_error("Please fill in all fields")
             return
-        login_ready.set()
             
         raw_img = Image.open(self.img_path).convert("RGB")
         raw_img.thumbnail((128, 128))
@@ -351,15 +351,15 @@ class ChatFrame(tk.Frame):
     def __init__(self, master):
         super().__init__(master)
         self.configure(bg=bg_color)
-
-        self.nav_btn = tk.Button(self, text="Private Chats", 
-                                 font=("Arial", 12, "bold"),
-                                 bg=chat_bg_color, fg=text_color,
-                                 command=show_private_chats)
-        self.nav_btn.pack(pady=10, padx=20, anchor="ne")
         self.top_bar = tk.Frame(self, bg=top_bar_color, height=35)
         self.top_bar.pack(fill="x", side="top")
         self.top_bar.pack_propagate(False)
+
+        self.nav_btn = tk.Button(self.top_bar, text="Private Chats", 
+                                 font=("Arial", 10, "bold"),
+                                 bg=chat_bg_color, fg=text_color,
+                                 command=show_private_chats)
+        self.nav_btn.pack(side="left", padx=10, pady=5)
 
         self.username_label = tk.Label(self.top_bar, text="", 
                           font=("Arial", 12, "bold"), bg=top_bar_color, fg="white")
@@ -388,6 +388,30 @@ class ChatFrame(tk.Frame):
             return
         self.entry.delete(0, tk.END)
         client.send(f"{nickname}: {msg}".encode("ascii"))
+
+    def display_message_with_pic(self, msg, img_bytes):
+        self.chat.config(state="normal")
+        
+        if img_bytes:
+            try:
+                stream = io.BytesIO(img_bytes)
+                pil_img = Image.open(stream).convert("RGB")
+                pil_img.thumbnail((30, 30))
+                tk_img = ImageTk.PhotoImage(pil_img)
+                
+                if not hasattr(self, 'image_refs'):
+                    self.image_refs = []
+                self.image_refs.append(tk_img)
+                
+                self.chat.image_create(tk.END, image=tk_img)
+                self.chat.insert(tk.END, " ")
+            except Exception as e:
+                print(f"Error displaying image: {e}")
+
+        self.chat.insert(tk.END, msg + "\n")
+        self.chat.see(tk.END)
+        self.chat.config(state="disabled")
+
 class ConversationsFrame(tk.Frame):
     def __init__(self, master):
         super().__init__(master)
@@ -437,6 +461,7 @@ class ConversationsFrame(tk.Frame):
                                        fg=text_color)
         self.message_entry.pack(fill="x")
         self.message_entry.bind("<Return>", self.send_private_message)
+
     def open_new_chat(self):
         search_window = tk.Toplevel(self)
         search_window.title("Search User")
@@ -483,9 +508,10 @@ class ConversationsFrame(tk.Frame):
         selection = event.widget.curselection()
         if selection:
             index = selection[0]
-            nickname = event.widget.get(index)
-            self.active_conversation = nickname
-            self.display_conversation(nickname)
+            username = event.widget.get(index)
+            self.active_conversation = username
+            self.display_conversation(username)
+
     def display_conversation(self, username):
         self.chat_display.config(state="normal")
         self.chat_display.delete(1.0, tk.END)
@@ -496,6 +522,7 @@ class ConversationsFrame(tk.Frame):
         
         self.chat_display.see(tk.END)
         self.chat_display.config(state="disabled")
+
     def send_private_message(self, event):
         if not self.active_conversation:
             return
@@ -505,7 +532,6 @@ class ConversationsFrame(tk.Frame):
             return
         
         self.message_entry.delete(0, tk.END)
-        
         client.send(f"PRIVATE_MSG:{self.active_conversation}:{msg}".encode("ascii"))
     
     def add_message_to_conversation(self, username, message):
@@ -517,28 +543,6 @@ class ConversationsFrame(tk.Frame):
         
         if self.active_conversation == username:
             self.display_conversation(username)
-    def display_message_with_pic(self, msg, img_bytes):
-        self.chat.config(state="normal")
-        
-        if img_bytes:
-            try:
-                stream = io.BytesIO(img_bytes)
-                pil_img = Image.open(stream).convert("RGB")
-                pil_img.thumbnail((30, 30))
-                tk_img = ImageTk.PhotoImage(pil_img)
-                
-                if not hasattr(self, 'image_refs'):
-                    self.image_refs = []
-                self.image_refs.append(tk_img)
-                
-                self.chat.image_create(tk.END, image=tk_img)
-                self.chat.insert(tk.END, " ")
-            except Exception as e:
-                print(f"Error displaying image: {e}")
-
-        self.chat.insert(tk.END, msg + "\n")
-        self.chat.see(tk.END)
-        self.chat.config(state="disabled")
 
 receive_thread = threading.Thread(target=receive, daemon=True)
 receive_thread.start()
@@ -548,8 +552,5 @@ chat_frame = ChatFrame(root)
 conversations_frame = ConversationsFrame(root)
 
 login_frame.pack(fill="both", expand=True)
-
-receive_thread = threading.Thread(target=receive, daemon=True)
-receive_thread.start()
 
 root.mainloop()
