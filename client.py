@@ -2,7 +2,10 @@ import socket
 import threading
 import tkinter as tk
 from tkinter import messagebox
-import time
+from tkinter import Label
+from tkinter import filedialog
+from PIL import Image, ImageTk
+import io
 
 client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 client.connect(('127.0.0.1', 25565))
@@ -14,6 +17,7 @@ password_event = threading.Event()
 authenticated = False
 nickname = ""
 password = ""
+img = None
 bg_color = "#9CAB84"
 chat_bg_color = "#F6F0D7"
 top_bar_color = "#5A6751"
@@ -42,6 +46,15 @@ def receive():
             elif message == 'REENTER_PASS':
                 client.send(register_frame.reenter_password.get().encode('ascii'))
             
+            elif message == 'PROFILE_PIC':
+                if 'register_frame' in globals() and hasattr(register_frame, 'final_img_data'):
+                    data = register_frame.final_img_data
+                    size = str(len(data)).zfill(10) 
+                    client.send(size.encode('ascii'))
+                    client.sendall(data)
+                else:
+                    client.send('0000000000'.encode('ascii'))
+
             elif message in ('LOGIN_SUCCESS', 'USER_CREATED'):
                 authenticated = True
                 root.after(0, show_chat)
@@ -168,6 +181,19 @@ class RegisterFrame(tk.Frame):
         self.input_frame = tk.Frame(self, bg=bg_color)
         self.input_frame.pack(pady=10, padx=30, fill="both", expand=True)
 
+        # Profile Picture
+        self.profile_pic_label = tk.Label(self.input_frame, text="Profile Picture:", font=("Arial", 14), bg=bg_color, fg="white")
+        self.profile_pic_label.pack(pady=(20, 5))
+
+        self.profile_pic_btn = tk.Button(self.input_frame, text="Choose File", font=("Arial", 12, "bold"),
+                            bg=chat_bg_color, fg=text_color, width=15, command=self.import_file)
+        self.profile_pic_btn.pack(pady=5)
+        
+        self.file_label = tk.Label(self.input_frame, text="No file selected", font=("Arial", 10), bg=bg_color, fg="white")
+        self.file_label.pack(pady=5)
+        
+        self.img_path = None
+
         # Username
         self.username_label = tk.Label(self.input_frame, text="Username:", font=("Arial", 14), bg=bg_color, fg="white")
         self.username_label.pack(pady=(20, 5))
@@ -195,17 +221,34 @@ class RegisterFrame(tk.Frame):
                             bg=chat_bg_color, fg=text_color, width=15, command=self.register)
         self.register_btn.pack(pady=20)
 
+    # Inside RegisterFrame.register
     def register(self):
-        global nickname, password, auth_mode
-        if not self.user.get() or not self.password.get() or not self.reenter_password.get():
+        global nickname, password, auth_mode, img
+        if not self.user.get() or not self.password.get() or not self.img_path:
             show_error("Please fill in all fields")
             return
+            
+        raw_img = Image.open(self.img_path).convert("RGB")
+        raw_img.thumbnail((128, 128)) # Resize to max 128x128
+        
+        byte_io = io.BytesIO()
+        raw_img.save(byte_io, format='JPEG', quality=85)
+        self.final_img_data = byte_io.getvalue()
+        
+        img = ImageTk.PhotoImage(raw_img)
+        
         nickname = self.user.get()
         password = self.password.get()
         auth_mode = "REGISTER"
         auth_mode_event.set()
-        nickname_event.set()
-        password_event.set()
+
+    def import_file(self):
+        file_path = filedialog.askopenfilename(title="Select an image", filetypes=[("Image files", "*.png *.jpg *.jpeg *.gif"), ("All files", "*.*")])
+        if file_path:
+            self.img_path = file_path
+            import os
+            filename = os.path.basename(file_path)
+            self.file_label.config(text=f"Selected: {filename}")
 
 class ChatFrame(tk.Frame):
     def __init__(self, master):

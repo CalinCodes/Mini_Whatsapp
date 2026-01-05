@@ -72,18 +72,19 @@ def receive():
                         continue
 
                 elif mode == "REGISTER":
-                    if user:
-                        client.send(b'USER_EXISTS')
-                        continue
 
-                    client.send(b'REENTER_PASS')
-                    reentered = client.recv(1024).decode('ascii')
+                    client.send(b'PROFILE_PIC')
+                    
+                    size_header = client.recv(10).decode('ascii')
+                    data_size = int(size_header)
+                    
+                    profile_pic_data = b""
+                    while len(profile_pic_data) < data_size:
+                        chunk = client.recv(max(1024, data_size - len(profile_pic_data)))
+                        if not chunk: break
+                        profile_pic_data += chunk
 
-                    if password != reentered:
-                        client.send(b'WRONG_PASSWORD')
-                        continue
-
-                    register_user(nickname, password)
+                    register_user(nickname, password, profile_pic_data)
                     client.send(b'USER_CREATED')
                     break
 
@@ -102,13 +103,14 @@ def setup_db():
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT UNIQUE NOT NULL,
-            password_hash TEXT NOT NULL
+            password_hash TEXT NOT NULL,
+            profile_pic BLOB
         )
     """)
     con.commit()
     return con
 
-def register_user(username, password):
+def register_user(username, password, profile_pic=None):
     ph = PasswordHasher()
     password_hash = ph.hash(password)
 
@@ -116,7 +118,8 @@ def register_user(username, password):
     cur = con.cursor()
 
     try:
-        cur.execute("INSERT INTO users (username, password_hash) VALUES (?, ?)", (username, password_hash))
+        cur.execute("INSERT INTO users (username, password_hash, profile_pic) VALUES (?, ?, ?)", 
+                   (username, password_hash, profile_pic))
         con.commit()
         print(f"User '{username}' registered successfully!")
     except sqlite3.IntegrityError:
