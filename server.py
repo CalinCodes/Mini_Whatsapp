@@ -27,10 +27,17 @@ def broadcast(message, image_data=None):
         except:
             continue
 
-def send_private(recipient_nickname, message, sender_client=None):
+def send_private(recipient_nickname, message, image_data=None, sender_client=None):
     if recipient_nickname in clients:
         try:
-            clients[recipient_nickname].send(message)
+            if image_data:
+                clients[recipient_nickname].send(b"IMG_MSG")
+                size = str(len(image_data)).zfill(10)
+                clients[recipient_nickname].send(size.encode('ascii'))
+                clients[recipient_nickname].sendall(image_data)
+                clients[recipient_nickname].send(message)
+            else:
+                clients[recipient_nickname].send(message)
             return True
         except:
             return False
@@ -54,9 +61,25 @@ def handle(client, nickname):
                 if len(parts) >= 3:
                     recipient = parts[1]
                     content = parts[2]
+                    
+                    con = sqlite3.connect("user_data.db")
+                    cur = con.cursor()
+                    cur.execute("SELECT profile_pic FROM users WHERE username = ?", (nickname,))
+                    res = cur.fetchone()
+                    con.close()
+                    
+                    pic_data = res[0] if res and res[0] else None
+                    
                     private_msg = f"PRIVATE:{nickname}:{content}"
-                    if send_private(recipient, private_msg.encode('ascii'), client):
-                        client.send(f"PRIVATE_SENT:{recipient}:{content}".encode('ascii'))
+                    if send_private(recipient, private_msg.encode('ascii'), image_data=pic_data, sender_client=client):
+                        if pic_data:
+                            client.send(b"IMG_MSG")
+                            size = str(len(pic_data)).zfill(10)
+                            client.send(size.encode('ascii'))
+                            client.sendall(pic_data)
+                            client.send(f"PRIVATE_SENT:{recipient}:{nickname}:{content}".encode('ascii'))
+                        else:
+                            client.send(f"PRIVATE_SENT:{recipient}:{nickname}:{content}".encode('ascii'))
             # User search
             elif decoded.startswith("SEARCH_USER:"):
                 username = decoded.split(":", 1)[1]

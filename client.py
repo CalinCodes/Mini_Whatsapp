@@ -83,7 +83,25 @@ def receive():
 
             if result[0] == 'IMG_MSG':
                 _, img_bytes, text_msg = result
-                root.after(0, lambda m=text_msg, i=img_bytes: chat_frame.display_message_with_pic(m, i))
+                if text_msg.startswith('PRIVATE:'):
+                    parts = text_msg.split(':', 2)
+                    if len(parts) >= 3:
+                        sender = parts[1]
+                        content = parts[2]
+                        formatted_msg = f"{sender}: {content}"
+                        root.after(0, lambda s=sender, m=formatted_msg, i=img_bytes: 
+                                  conversations_frame.add_message_to_conversation(s, m, i))
+                elif text_msg.startswith('PRIVATE_SENT:'):
+                    parts = text_msg.split(':', 3)
+                    if len(parts) >= 4:
+                        recipient = parts[1]
+                        sender = parts[2]
+                        content = parts[3]
+                        formatted_msg = f"{sender}: {content}"
+                        root.after(0, lambda r=recipient, m=formatted_msg, i=img_bytes: 
+                                  conversations_frame.add_message_to_conversation(r, m, i))
+                else:
+                    root.after(0, lambda m=text_msg, i=img_bytes: chat_frame.display_message_with_pic(m, i))
                 continue
             message = result[1]
 
@@ -140,20 +158,21 @@ def receive():
                     content = parts[2]
                     formatted_msg = f"{sender}: {content}"
                     root.after(0, lambda s=sender, m=formatted_msg: 
-                              conversations_frame.add_message_to_conversation(s, m))
+                              conversations_frame.add_message_to_conversation(s, m, None))
 
             elif message.startswith('PRIVATE_SENT:'):
-                parts = message.split(':', 2)
-                if len(parts) >= 3:
+                parts = message.split(':', 3)
+                if len(parts) >= 4:
                     recipient = parts[1]
-                    content = parts[2]
-                    formatted_msg = f"You: {content}"
+                    sender = parts[2]
+                    content = parts[3]
+                    formatted_msg = f"{sender}: {content}"
                     root.after(0, lambda r=recipient, m=formatted_msg: 
-                              conversations_frame.add_message_to_conversation(r, m))
+                              conversations_frame.add_message_to_conversation(r, m, None))
             elif message.startswith('USER_FOUND:'):
                 username = message.split(':', 1)[1]
                 root.after(0, lambda u=username: 
-                          conversations_frame.add_message_to_conversation(u, f"--- Chat started with {u} ---"))
+                          conversations_frame.add_message_to_conversation(u, f"--- Chat started with {u} ---", None))
             elif message == 'USER_NOT_FOUND':
                 root.after(0, lambda: messagebox.showerror("Error", "User not found!"))
             elif message == 'USER_OFFLINE':
@@ -536,7 +555,30 @@ class ConversationsFrame(tk.Frame):
         self.chat_display.delete(1.0, tk.END)
         
         if username in self.conversations:
-            for msg in self.conversations[username]:
+            for item in self.conversations[username]:
+                if isinstance(item, tuple):
+                    msg, img_data = item
+                else:
+                    msg = item
+                    img_data = None
+                
+                # Display image if available
+                if img_data:
+                    try:
+                        stream = io.BytesIO(img_data)
+                        pil_img = Image.open(stream).convert("RGB")
+                        pil_img.thumbnail((30, 30))
+                        tk_img = ImageTk.PhotoImage(pil_img)
+                        
+                        if not hasattr(self, 'image_refs'):
+                            self.image_refs = []
+                        self.image_refs.append(tk_img)
+                        
+                        self.chat_display.image_create(tk.END, image=tk_img)
+                        self.chat_display.insert(tk.END, " ")
+                    except Exception as e:
+                        print(f"Error displaying image: {e}")
+                
                 self.chat_display.insert(tk.END, msg + "\n")
         
         self.chat_display.see(tk.END)
@@ -556,12 +598,12 @@ class ConversationsFrame(tk.Frame):
     def update_username_display(self):
         self.username_label.config(text=f"Logged in as: {nickname}")
     
-    def add_message_to_conversation(self, username, message):
+    def add_message_to_conversation(self, username, message, img_data=None):
         if username not in self.conversations:
             self.conversations[username] = []
             self.conversations_listbox.insert(tk.END, username)
         
-        self.conversations[username].append(message)
+        self.conversations[username].append((message, img_data))
         
         if self.active_conversation == username:
             self.display_conversation(username)
