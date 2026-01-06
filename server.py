@@ -3,9 +3,15 @@ import threading
 import sqlite3
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
+import os
+from dotenv import load_dotenv
+from google import genai
 
 host = '127.0.0.1'
 port = 25565
+
+load_dotenv()
+gemini_client = genai.Client(api_key=os.getenv("GENAI_API_KEY"))
 
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 server.bind((host, port))
@@ -100,6 +106,40 @@ def handle(client, nickname):
                             client.send(f"PRIVATE_SENT:{recipient}:{nickname}:{content}".encode('ascii'))
                         else:
                             client.send(f"PRIVATE_SENT:{recipient}:{nickname}:{content}".encode('ascii'))
+                        
+                        # Handle Gemini in private messages
+                        if content.startswith("@GEMINI"):
+                            try:
+                                con = sqlite3.connect("user_data.db")
+                                cur = con.cursor()
+                                cur.execute("SELECT profile_pic FROM users WHERE username = ?", (nickname,))
+                                res = cur.fetchone()
+                                con.close()
+                                pic_data = res[0] if res and res[0] else None
+
+                                response = gemini_client.models.generate_content(
+                                    model = "gemini-2.5-flash-lite",
+                                    contents = content
+                                ) 
+                                gemini_text = response.text
+
+                                gemini_msg_to_recipient = f"PRIVATE:{nickname}:GEMINI {gemini_text}"
+                                send_private(recipient, gemini_msg_to_recipient.encode('ascii'), image_data=pic_data)
+
+                                if pic_data:
+                                    client.send(b"IMG_MSG")
+                                    size = str(len(pic_data)).zfill(10)
+                                    client.send(size.encode('ascii'))
+                                    client.sendall(pic_data)
+
+                                gemini_msg_to_sender = f"PRIVATE_SENT:{recipient}:GEMINI:{gemini_text}"
+                                client.send(gemini_msg_to_sender.encode('ascii'))
+
+                            except Exception as e:
+                                print(f"Gemini API error: {e}")
+                                error_msg = f"Error: {str(e)}"
+                                send_private(recipient, f"PRIVATE:{nickname}:GEMINI ERROR {error_msg}".encode('ascii'))
+                                client.send(f"PRIVATE_SENT:{recipient}:GEMINI:{error_msg}".encode('ascii'))
             # Group message
             elif decoded.startswith("GROUP_MSG:"):
                 parts = decoded.split(":", 2)
@@ -125,6 +165,39 @@ def handle(client, nickname):
                             client.send(f"GROUP_SENT:{group_name}:{nickname}:{content}".encode('ascii'))
                         else:
                             client.send(f"GROUP_SENT:{group_name}:{nickname}:{content}".encode('ascii'))
+                    
+                    if content.startswith("@GEMINI"):
+                        try:
+                            con = sqlite3.connect("user_data.db")
+                            cur = con.cursor()
+                            cur.execute("SELECT profile_pic FROM users WHERE username = ?", (nickname,))
+                            res = cur.fetchone()
+                            con.close()
+                            pic_data = res[0] if res and res[0] else None
+                            response = gemini_client.models.generate_content(
+                                model = "gemini-2.5-flash-lite",
+                                contents = content
+                            ) 
+                            gemini_text = response.text
+
+                            gemini_msg_to_group = f"GROUP:{group_name}:{nickname}:GEMINI {gemini_text}"
+                            send_group(group_name, gemini_msg_to_group.encode('ascii'), image_data=pic_data, sender_nickname=nickname)
+
+                            if pic_data:
+                                client.send(b"IMG_MSG")
+                                size = str(len(pic_data)).zfill(10)
+                                client.send(size.encode('ascii'))
+                                client.sendall(pic_data)
+
+                            gemini_msg_to_sender = f"GROUP_SENT:{group_name}:{nickname}:GEMINI:{gemini_text}"
+                            client.send(gemini_msg_to_sender.encode('ascii'))
+
+                        except Exception as e:
+                            print(f"Gemini API error: {e}")
+                            error_msg = f"Error: {str(e)}"
+                            send_group(group_name, f"GROUP:{group_name}:{nickname}:GEMINI ERROR {error_msg}".encode('ascii'), sender_nickname=nickname)
+                            client.send(f"GROUP_SENT:{group_name}:{nickname}:GEMINI:{error_msg}".encode('ascii'))
+
             elif decoded.startswith("CREATE_GROUP:"):
                 parts = decoded.split(":", 2)
                 if len(parts) >= 3:
@@ -178,7 +251,10 @@ def handle(client, nickname):
                     broadcast(message, image_data=pic_data)
                 else:
                     broadcast(message)
-        except:
+        except Exception as e:
+            print(f"Error handling message from {nickname}: {e}")
+            import traceback
+            traceback.print_exc()
             break
     
     if nickname in clients:
