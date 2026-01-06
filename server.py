@@ -12,6 +12,7 @@ server.bind((host, port))
 server.listen()
 
 clients = {}
+groups = {}
 
 def broadcast(message, image_data=None):
     for client_socket in list(clients.values()):
@@ -45,6 +46,25 @@ def send_private(recipient_nickname, message, image_data=None, sender_client=Non
         if sender_client:
             sender_client.send("USER_OFFLINE".encode('ascii'))
         return False
+
+def send_group(group_name, message, image_data=None, sender_nickname=None):
+    if group_name not in groups:
+        return False
+    
+    for member in groups[group_name]:
+        if member in clients and member != sender_nickname:
+            try:
+                if image_data:
+                    clients[member].send(b"IMG_MSG")
+                    size = str(len(image_data)).zfill(10)
+                    clients[member].send(size.encode('ascii'))
+                    clients[member].sendall(image_data)
+                    clients[member].send(message)
+                else:
+                    clients[member].send(message)
+            except:
+                continue
+    return True
 
 def handle(client, nickname):
     while True:
@@ -80,6 +100,61 @@ def handle(client, nickname):
                             client.send(f"PRIVATE_SENT:{recipient}:{nickname}:{content}".encode('ascii'))
                         else:
                             client.send(f"PRIVATE_SENT:{recipient}:{nickname}:{content}".encode('ascii'))
+            # Group message
+            elif decoded.startswith("GROUP_MSG:"):
+                parts = decoded.split(":", 2)
+                if len(parts) >= 3:
+                    group_name = parts[1]
+                    content = parts[2]
+                    
+                    con = sqlite3.connect("user_data.db")
+                    cur = con.cursor()
+                    cur.execute("SELECT profile_pic FROM users WHERE username = ?", (nickname,))
+                    res = cur.fetchone()
+                    con.close()
+                    
+                    pic_data = res[0] if res and res[0] else None
+                    
+                    group_msg = f"GROUP:{group_name}:{nickname}:{content}"
+                    if send_group(group_name, group_msg.encode('ascii'), image_data=pic_data, sender_nickname=nickname):
+                        if pic_data:
+                            client.send(b"IMG_MSG")
+                            size = str(len(pic_data)).zfill(10)
+                            client.send(size.encode('ascii'))
+                            client.sendall(pic_data)
+                            client.send(f"GROUP_SENT:{group_name}:{nickname}:{content}".encode('ascii'))
+                        else:
+                            client.send(f"GROUP_SENT:{group_name}:{nickname}:{content}".encode('ascii'))
+            elif decoded.startswith("CREATE_GROUP:"):
+                parts = decoded.split(":", 2)
+                if len(parts) >= 3:
+                    group_name = parts[1]
+                    members_str = parts[2]
+                    members = [m.strip() for m in members_str.split(",") if m.strip()]
+                    
+                    # For group creator
+                    if nickname not in members:
+                        members.append(nickname)
+                    
+                    # Verify all members exist
+                    con = sqlite3.connect("user_data.db")
+                    cur = con.cursor()
+                    valid_members = []
+                    for member in members:
+                        cur.execute("SELECT username FROM users WHERE username = ?", (member,))
+                        if cur.fetchone():
+                            valid_members.append(member)
+                    con.close()
+                    
+                    if len(valid_members) >= 2:
+                        groups[group_name] = valid_members
+                        client.send(f"GROUP_CREATED:{group_name}".encode('ascii'))
+                        # Notify all members
+                        for member in valid_members:
+                            if member in clients and member != nickname:
+                                clients[member].send(f"GROUP_ADDED:{group_name}".encode('ascii'))
+                    else:
+                        client.send("GROUP_CREATE_FAILED".encode('ascii'))
             # User search
             elif decoded.startswith("SEARCH_USER:"):
                 username = decoded.split(":", 1)[1]
