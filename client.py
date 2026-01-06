@@ -555,8 +555,7 @@ class ConversationsFrame(tk.Frame):
     def open_new_chat(self):
         search_window = tk.Toplevel(self)
         search_window.title("Start New Chat")
-        search_window.geometry("400x380")
-        search_window.minsize(400, 380)
+        search_window.geometry("400x460")
         search_window.configure(bg=bg_color)
         
         title_label = tk.Label(search_window, text="Start New Chat", 
