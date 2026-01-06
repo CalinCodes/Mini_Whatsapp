@@ -83,7 +83,43 @@ def receive():
 
             if result[0] == 'IMG_MSG':
                 _, img_bytes, text_msg = result
-                root.after(0, lambda m=text_msg, i=img_bytes: chat_frame.display_message_with_pic(m, i))
+                if text_msg.startswith('PRIVATE:'):
+                    parts = text_msg.split(':', 2)
+                    if len(parts) >= 3:
+                        sender = parts[1]
+                        content = parts[2]
+                        formatted_msg = f"{sender}: {content}"
+                        root.after(0, lambda s=sender, m=formatted_msg, i=img_bytes: 
+                                  conversations_frame.add_message_to_conversation(s, m, i))
+                elif text_msg.startswith('PRIVATE_SENT:'):
+                    parts = text_msg.split(':', 3)
+                    if len(parts) >= 4:
+                        recipient = parts[1]
+                        sender = parts[2]
+                        content = parts[3]
+                        formatted_msg = f"{sender}: {content}"
+                        root.after(0, lambda r=recipient, m=formatted_msg, i=img_bytes: 
+                                  conversations_frame.add_message_to_conversation(r, m, i))
+                elif text_msg.startswith('GROUP:'):
+                    parts = text_msg.split(':', 3)
+                    if len(parts) >= 4:
+                        group_name = parts[1]
+                        sender = parts[2]
+                        content = parts[3]
+                        formatted_msg = f"{sender}: {content}"
+                        root.after(0, lambda g=group_name, m=formatted_msg, i=img_bytes: 
+                                  conversations_frame.add_message_to_conversation(g, m, i, is_group=True))
+                elif text_msg.startswith('GROUP_SENT:'):
+                    parts = text_msg.split(':', 3)
+                    if len(parts) >= 4:
+                        group_name = parts[1]
+                        sender = parts[2]
+                        content = parts[3]
+                        formatted_msg = f"{sender}: {content}"
+                        root.after(0, lambda g=group_name, m=formatted_msg, i=img_bytes: 
+                                  conversations_frame.add_message_to_conversation(g, m, i, is_group=True))
+                else:
+                    root.after(0, lambda m=text_msg, i=img_bytes: chat_frame.display_message_with_pic(m, i))
                 continue
             message = result[1]
 
@@ -140,20 +176,55 @@ def receive():
                     content = parts[2]
                     formatted_msg = f"{sender}: {content}"
                     root.after(0, lambda s=sender, m=formatted_msg: 
-                              conversations_frame.add_message_to_conversation(s, m))
+                              conversations_frame.add_message_to_conversation(s, m, None))
 
             elif message.startswith('PRIVATE_SENT:'):
-                parts = message.split(':', 2)
-                if len(parts) >= 3:
+                parts = message.split(':', 3)
+                if len(parts) >= 4:
                     recipient = parts[1]
-                    content = parts[2]
-                    formatted_msg = f"You: {content}"
+                    sender = parts[2]
+                    content = parts[3]
+                    formatted_msg = f"{sender}: {content}"
                     root.after(0, lambda r=recipient, m=formatted_msg: 
-                              conversations_frame.add_message_to_conversation(r, m))
+                              conversations_frame.add_message_to_conversation(r, m, None))
+            
+            elif message.startswith('GROUP:'):
+                parts = message.split(':', 3)
+                if len(parts) >= 4:
+                    group_name = parts[1]
+                    sender = parts[2]
+                    content = parts[3]
+                    formatted_msg = f"{sender}: {content}"
+                    root.after(0, lambda g=group_name, m=formatted_msg: 
+                              conversations_frame.add_message_to_conversation(g, m, None, is_group=True))
+            
+            elif message.startswith('GROUP_SENT:'):
+                parts = message.split(':', 3)
+                if len(parts) >= 4:
+                    group_name = parts[1]
+                    sender = parts[2]
+                    content = parts[3]
+                    formatted_msg = f"{sender}: {content}"
+                    root.after(0, lambda g=group_name, m=formatted_msg: 
+                              conversations_frame.add_message_to_conversation(g, m, None, is_group=True))
+            
+            elif message.startswith('GROUP_CREATED:'):
+                group_name = message.split(':', 1)[1]
+                root.after(0, lambda g=group_name: 
+                          conversations_frame.add_message_to_conversation(g, f"--- Group '{g}' created ---", None, is_group=True))
+            
+            elif message.startswith('GROUP_ADDED:'):
+                group_name = message.split(':', 1)[1]
+                root.after(0, lambda g=group_name: 
+                          conversations_frame.add_message_to_conversation(g, f"--- You were added to '{g}' ---", None, is_group=True))
+            
+            elif message == 'GROUP_CREATE_FAILED':
+                root.after(0, lambda: messagebox.showerror("Error", "Failed to create group. Check usernames."))
+            
             elif message.startswith('USER_FOUND:'):
                 username = message.split(':', 1)[1]
                 root.after(0, lambda u=username: 
-                          conversations_frame.add_message_to_conversation(u, f"--- Chat started with {u} ---"))
+                          conversations_frame.add_message_to_conversation(u, f"--- Chat started with {u} ---", None))
             elif message == 'USER_NOT_FOUND':
                 root.after(0, lambda: messagebox.showerror("Error", "User not found!"))
             elif message == 'USER_OFFLINE':
@@ -483,24 +554,28 @@ class ConversationsFrame(tk.Frame):
 
     def open_new_chat(self):
         search_window = tk.Toplevel(self)
-        search_window.title("Search User")
-        search_window.geometry("400x250")
+        search_window.title("Start New Chat")
+        search_window.geometry("400x460")
         search_window.configure(bg=bg_color)
         
         title_label = tk.Label(search_window, text="Start New Chat", 
                                font=("Arial", 16, "bold"), 
                                bg=bg_color, fg="white")
-        title_label.pack(pady=20)
+        title_label.pack(pady=15)
         
-        username_label = tk.Label(search_window, text="Enter username:", 
-                                   font=("Arial", 12), 
+        # Private chat
+        private_frame = tk.Frame(search_window, bg=bg_color)
+        private_frame.pack(pady=10, fill="x", padx=20)
+        
+        private_label = tk.Label(private_frame, text="Private Chat - Enter username:", 
+                                   font=("Arial", 11, "bold"), 
                                    bg=bg_color, fg="white")
-        username_label.pack(pady=5)
+        private_label.pack(pady=5)
         
-        search_entry = tk.Entry(search_window, font=("Arial", 14), 
+        search_entry = tk.Entry(private_frame, font=("Arial", 14), 
                                 width=25, 
                                 bg=chat_bg_color, fg=text_color)
-        search_entry.pack(pady=10)
+        search_entry.pack(pady=5)
         search_entry.focus()
         
         def search_user():
@@ -516,18 +591,72 @@ class ConversationsFrame(tk.Frame):
         
         search_entry.bind("<Return>", lambda e: search_user())
         
-        search_btn = tk.Button(search_window, text="Search", 
-                               font=("Arial", 12, "bold"),
+        search_btn = tk.Button(private_frame, text="Start Private Chat", 
+                               font=("Arial", 11, "bold"),
                                bg=chat_bg_color, fg=text_color, 
-                               width=15, 
+                               width=20, 
                                command=search_user)
-        search_btn.pack(pady=20)
+        search_btn.pack(pady=5)
+        
+        separator = tk.Label(search_window, text="OR", 
+                            font=("Arial", 12, "bold"), 
+                            bg=bg_color, fg="white")
+        separator.pack(pady=10)
+        
+        # Group chat
+        group_frame = tk.Frame(search_window, bg=bg_color)
+        group_frame.pack(pady=10, fill="x", padx=20)
+        
+        group_label = tk.Label(group_frame, text="Group Chat - Enter group name:", 
+                              font=("Arial", 11, "bold"), 
+                              bg=bg_color, fg="white")
+        group_label.pack(pady=5)
+        
+        group_name_entry = tk.Entry(group_frame, font=("Arial", 14), 
+                                    width=25, 
+                                    bg=chat_bg_color, fg=text_color)
+        group_name_entry.pack(pady=5)
+        
+        members_label = tk.Label(group_frame, text="Members (comma-separated):", 
+                                font=("Arial", 11), 
+                                bg=bg_color, fg="white")
+        members_label.pack(pady=5)
+        
+        members_entry = tk.Entry(group_frame, font=("Arial", 14), 
+                                width=25, 
+                                bg=chat_bg_color, fg=text_color)
+        members_entry.pack(pady=5)
+        
+        def create_group():
+            group_name = group_name_entry.get().strip()
+            members = members_entry.get().strip()
+            
+            if group_name == "" or members == "":
+                messagebox.showwarning("Invalid", "Please enter group name and members")
+                return
+            
+            client.send(f"CREATE_GROUP:{group_name}:{members}".encode('ascii'))
+            search_window.destroy()
+        
+        members_entry.bind("<Return>", lambda e: create_group())
+        
+        group_btn = tk.Button(group_frame, text="Create Group", 
+                             font=("Arial", 11, "bold"),
+                             bg=chat_bg_color, fg=text_color, 
+                             width=20, 
+                             command=create_group)
+        group_btn.pack(pady=5)
     
     def on_conversation_select(self, event):
         selection = event.widget.curselection()
         if selection:
             index = selection[0]
-            username = event.widget.get(index)
+            display_name = event.widget.get(index)
+            # Map display name back to actual username
+            if hasattr(self, 'display_to_actual') and display_name in self.display_to_actual:
+                username = self.display_to_actual[display_name]
+            else:
+                username = display_name
             self.active_conversation = username
             self.display_conversation(username)
 
@@ -536,7 +665,30 @@ class ConversationsFrame(tk.Frame):
         self.chat_display.delete(1.0, tk.END)
         
         if username in self.conversations:
-            for msg in self.conversations[username]:
+            for item in self.conversations[username]:
+                if isinstance(item, tuple):
+                    msg, img_data = item
+                else:
+                    msg = item
+                    img_data = None
+                
+                # Display image if available
+                if img_data:
+                    try:
+                        stream = io.BytesIO(img_data)
+                        pil_img = Image.open(stream).convert("RGB")
+                        pil_img.thumbnail((30, 30))
+                        tk_img = ImageTk.PhotoImage(pil_img)
+                        
+                        if not hasattr(self, 'image_refs'):
+                            self.image_refs = []
+                        self.image_refs.append(tk_img)
+                        
+                        self.chat_display.image_create(tk.END, image=tk_img)
+                        self.chat_display.insert(tk.END, " ")
+                    except Exception as e:
+                        print(f"Error displaying image: {e}")
+                
                 self.chat_display.insert(tk.END, msg + "\n")
         
         self.chat_display.see(tk.END)
@@ -551,17 +703,38 @@ class ConversationsFrame(tk.Frame):
             return
         
         self.message_entry.delete(0, tk.END)
-        client.send(f"PRIVATE_MSG:{self.active_conversation}:{msg}".encode("ascii"))
+        
+        # Check if this is a group chat
+        is_group = hasattr(self, 'group_conversations') and self.active_conversation in self.group_conversations
+        
+        if is_group:
+            client.send(f"GROUP_MSG:{self.active_conversation}:{msg}".encode("ascii"))
+        else:
+            client.send(f"PRIVATE_MSG:{self.active_conversation}:{msg}".encode("ascii"))
     
     def update_username_display(self):
         self.username_label.config(text=f"Logged in as: {nickname}")
     
-    def add_message_to_conversation(self, username, message):
+    def add_message_to_conversation(self, username, message, img_data=None, is_group=False):
         if username not in self.conversations:
             self.conversations[username] = []
-            self.conversations_listbox.insert(tk.END, username)
+            # Add underline effect to group names
+            if is_group:
+                display_name = ''.join(c + '\u0332' for c in username)
+            else:
+                display_name = username
+            self.conversations_listbox.insert(tk.END, display_name)
+            if not hasattr(self, 'group_conversations'):
+                self.group_conversations = set()
+            if not hasattr(self, 'display_to_actual'):
+                self.display_to_actual = {}
+            if is_group:
+                self.group_conversations.add(username)
+                self.display_to_actual[display_name] = username
+            else:
+                self.display_to_actual[display_name] = username
         
-        self.conversations[username].append(message)
+        self.conversations[username].append((message, img_data))
         
         if self.active_conversation == username:
             self.display_conversation(username)
