@@ -2,12 +2,21 @@
 
 A real-time messaging application built with Python that supports public chat, private messaging, group chats, profile pictures, and AI-powered responses via Google's Gemini API.
 
+<img width="1277" height="746" alt="Screenshot 2026-03-21 at 10 19 39" src="https://github.com/user-attachments/assets/e8d27f0e-c7ad-4615-a9fe-02d6e1dfb222" />
+
+<img width="48%" alt="Screenshot 2026-03-21 at 10 25 51" src="https://github.com/user-attachments/assets/73a146de-fef6-461c-af26-482b41b42725" align="left"/>
+
+<img width="48%" alt="Screenshot 2026-03-21 at 10 25 00" src="https://github.com/user-attachments/assets/0b238d46-3438-4c5e-b6d5-4ea2b251889e" />
+
+<br clear="left"/>
+
 ## Description
 
 Mini WhatsApp is a socket-based chat application with a GUI built using Tkinter. It features a client-server architecture where multiple clients can connect simultaneously and communicate through various channels. The application includes user authentication with secure password hashing (Argon2), profile picture support, and integration with Google's Gemini AI for intelligent responses.
 
 **Key Features:**
 - User registration and login with secure password hashing (Argon2)
+
 - Profile picture upload and display
 - Public chat room for all connected users
 - Private messaging between users
